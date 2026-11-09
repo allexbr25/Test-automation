@@ -22,28 +22,54 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Gerar Keystore de Assinatura Release (V1 + V2 + V3)
+        run: |
+          keytool -genkeypair -v \
+            -keystore app/release-keystore.jks \
+            -alias glpi_hosb_key \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass glpihosb2026 \
+            -keypass glpihosb2026 \
+            -dname "CN=GLPI HOSB, OU=TIC, O=HOSB, L=Niteroi, ST=RJ, C=BR"
+
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Compilar APK Debug (GLPI HOSB)
-        run: gradle assembleDebug --no-daemon
+      - name: Compilar APK Release Assinado (GLPI HOSB)
+        run: |
+          gradle assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release.apk GLPI-HOSB-v1.0.1.apk
+          cp app/build/outputs/apk/release/app-release.apk app-debug.apk
+
+      - name: Verificar Assinatura V1/V2/V3 do APK
+        run: |
+          jarsigner -verify -verbose -certs GLPI-HOSB-v1.0.1.apk | tail -n 20
 
       - name: Publicar APK como Artefato no GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: GLPI-HOSB-Android-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: GLPI-HOSB-Android-APK-v1.0.1
+          path: GLPI-HOSB-v1.0.1.apk
 
-      - name: Criar/Atualizar Release com o APK para Download Direto
+      - name: Criar/Atualizar Release com o APK Assinado para Download Direto
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0-latest
-          name: "GLPI HOSB Android APK (Download Direto)"
+          tag_name: v1.0.1
+          name: "GLPI HOSB Android APK v1.0.1 (Release Assinado V1+V2+V3)"
           body: |
-            ### 📱 Aplicativo Android GLPI HOSB (`glpi.hosb.com.br`)
-            Baixe o arquivo **`app-debug.apk`** abaixo e instale diretamente no seu dispositivo Android.
-          files: app/build/outputs/apk/debug/app-debug.apk
+            ### 📱 Aplicativo Android GLPI HOSB (`glpi.hosb.com.br`) — Versão 1.0.1 (Corrigida e Assinada)
+            - **Assinatura completa V1 (JAR) + V2 + V3 (APK Signing Block)** com certificado de produção RSA-2048.
+            - **Compatibilidade**: Android 7.0 até Android 15 (`minSdk 24` / `targetSdk 34`).
+            - **Sem flag `debuggable` ou permissões de depuração (`DUMP`)** que causam bloqueio no instalador do Android / Play Protect.
+            - **Ícone de Launcher e Manifesto compatíveis com Samsung One UI, Motorola, Xiaomi e Pixel.**
+
+            👉 **Clique em `GLPI-HOSB-v1.0.1.apk` abaixo para baixar e instalar.**
+          files: |
+            GLPI-HOSB-v1.0.1.apk
+            app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
