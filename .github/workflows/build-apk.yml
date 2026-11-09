@@ -54,25 +54,28 @@ jobs:
             echo "::error title=Gradle Build Error::$ERR_SUMMARY"
             exit $EXIT_CODE
           fi
-          cp app/build/outputs/apk/release/app-release.apk GLPI-HOSB-v1.0.7.apk
+          cp app/build/outputs/apk/release/app-release.apk GLPI-HOSB-v1.0.8.apk
 
       - name: Verificar Assinatura V1/V2/V3 do APK
         run: |
-          jarsigner -verify -verbose -certs GLPI-HOSB-v1.0.7.apk | tail -n 20
+          jarsigner -verify -verbose -certs GLPI-HOSB-v1.0.8.apk | tail -n 20
 
       - name: Publicar APK como Artefato no GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: GLPI-HOSB-Android-APK-v1.0.7
-          path: GLPI-HOSB-v1.0.7.apk
+          name: GLPI-HOSB-Android-APK-v1.0.8
+          path: GLPI-HOSB-v1.0.8.apk
 
       - name: Criar/Atualizar Release com o APK Assinado para Download Direto
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.7
-          name: "GLPI HOSB Android APK v1.0.7"
+          tag_name: v1.0.8
+          name: "GLPI HOSB Android APK v1.0.8"
           body: |
-            ### 📱 Aplicativo Android GLPI HOSB (`glpi.hosb.com.br`) — Versão 1.0.7 (Otimizada para Samsung Galaxy S23 Ultra • One UI 9)
+            ### 📱 Aplicativo Android GLPI HOSB (`glpi.hosb.com.br`) — Versão 1.0.8 (Otimizada para Samsung Galaxy S23 Ultra • One UI 9)
+            - **Sessão persistente**: sair/fechar o app não faz mais logout (igual WhatsApp/Telegram). O logout só ocorre em `Sair da Sessão`.
+            - **Notificações com o app fechado**: sincronização em segundo plano (WorkManager) que continua avisando sobre novos chamados e movimentações, inclusive após reiniciar o celular.
+            - **Bloqueio por biometria ao retornar**: ao voltar para o app, ele pede digital/rosto/PIN antes de mostrar os chamados (igual ao Telegram).
             - **Login por Biometria (`Entrar com Biometria`)**: integração nativa com o leitor ultrassônico de impressão digital e reconhecimento facial do Samsung Galaxy S23 Ultra via `BiometricPrompt`.
             - **Notificações de Novos Chamados e Movimentações**: alertas nativos do Android (`IMPORTANCE_HIGH`) + sino de notificações (`🔔`) na barra superior com contador de não lidas e histórico em tempo real.
             - **Barra de Ações Completa no Chamado (idêntica ao GLPI Web)**:
@@ -82,8 +85,8 @@ jobs:
               - **📄 Documento**: rubrica do documento, seleção de arquivo (`📎 Escolher Arquivo (Foto / PDF)`) ou `📸 Captura de tela`, título, comentário e botão `+ Adicionar novo arquivo`.
               - **👍 Aprovação**: envio de solicitação de aprovação (`Etapa de aprovação`, `Usuário` ou `Grupo`, aprovador, comentários e `+ Adicionar`) + decisão direta nos pedidos pendentes (`✅ Aprovar` / `❌ Recusar`).
 
-            👉 **Clique em `GLPI-HOSB-v1.0.7.apk` abaixo para baixar e instalar.**
+            👉 **Clique em `GLPI-HOSB-v1.0.8.apk` abaixo para baixar e instalar.**
           files: |
-            GLPI-HOSB-v1.0.7.apk
+            GLPI-HOSB-v1.0.8.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

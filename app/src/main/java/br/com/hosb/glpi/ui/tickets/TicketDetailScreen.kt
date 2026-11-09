@@ -951,7 +951,10 @@ private fun TicketInteractiveTimelineTab(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
-                            onClick = { filePickerLauncher.launch("*/*") },
+                            onClick = {
+                                br.com.hosb.glpi.util.AppVisibility.suppressNextLock = true
+                                filePickerLauncher.launch("*/*")
+                            },
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp))

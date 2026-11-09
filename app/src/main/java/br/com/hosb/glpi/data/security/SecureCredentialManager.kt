@@ -109,6 +109,37 @@ class SecureCredentialManager(context: Context) {
         )
     }
 
+    fun setPersistentLogin(enabled: Boolean) {
+        securePrefs.edit().putBoolean(KEY_PERSISTENT_LOGIN, enabled).apply()
+    }
+
+    /** Sessão permanece ativa (como WhatsApp/Telegram) até o usuário tocar em "Sair da Sessão". */
+    fun isPersistentLoginActive(): Boolean {
+        return securePrefs.getBoolean(KEY_PERSISTENT_LOGIN, false) &&
+            !securePrefs.getString(KEY_PASSWORD, "").isNullOrBlank()
+    }
+
+    fun loadStoredCredentials(): AuthCredentials {
+        return loadCredentials().copy(
+            password = securePrefs.getString(KEY_PASSWORD, "").orEmpty(),
+            rememberMe = true
+        )
+    }
+
+    fun saveTicketSnapshot(snapshot: Map<Int, String>) {
+        val encoded = snapshot.entries.joinToString("|") { "${it.key}=${it.value}" }
+        securePrefs.edit().putString(KEY_TICKET_SNAPSHOT, encoded).apply()
+    }
+
+    fun loadTicketSnapshot(): Map<Int, String> {
+        val raw = securePrefs.getString(KEY_TICKET_SNAPSHOT, "").orEmpty()
+        if (raw.isBlank()) return emptyMap()
+        return raw.split("|").mapNotNull { part ->
+            val idx = part.indexOf('=')
+            if (idx <= 0) null else part.substring(0, idx).toIntOrNull()?.let { it to part.substring(idx + 1) }
+        }.toMap()
+    }
+
     fun clearSession() {
         activeSessionToken = null
         securePrefs.edit()
@@ -137,6 +168,8 @@ class SecureCredentialManager(context: Context) {
         private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
         private const val KEY_SESSION_TOKEN = "session_token"
         private const val KEY_SESSION_TIMESTAMP = "session_timestamp"
+        private const val KEY_PERSISTENT_LOGIN = "persistent_login"
+        private const val KEY_TICKET_SNAPSHOT = "ticket_snapshot"
 
         fun sanitizeServerUrl(rawUrl: String): String {
             val trimmed = rawUrl.trim()

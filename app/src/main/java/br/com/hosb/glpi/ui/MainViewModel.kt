@@ -14,7 +14,9 @@ import br.com.hosb.glpi.domain.model.TicketPriority
 import br.com.hosb.glpi.domain.model.TicketSortOption
 import br.com.hosb.glpi.domain.model.TicketStatus
 import br.com.hosb.glpi.domain.model.TicketType
+import br.com.hosb.glpi.util.AppVisibility
 import br.com.hosb.glpi.util.GlpiNotificationHelper
+import br.com.hosb.glpi.util.TicketSyncWorker
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,7 +48,8 @@ data class GlpiUiState(
     val isFilterPanelExpanded: Boolean = false,
     val searchQuery: String = "",
     val selectedTicket: Ticket? = null,
-    val isNewTicketSheetOpen: Boolean = false
+    val isNewTicketSheetOpen: Boolean = false,
+    val isLocked: Boolean = false
 ) {
     val unreadNotificationCount: Int
         get() = notifications.count { !it.isRead }
@@ -129,6 +132,39 @@ class MainViewModel(
             val initialTickets = repository.getTicketsForProfile(GlpiUserProfile.PERFIL_TIC)
             _uiState.update { it.copy(tickets = initialTickets) }
         }
+        // Sessão persistente: ao reabrir o app, continua logado porém bloqueado até validar a biometria
+        if (credentialManager.isPersistentLoginActive()) {
+            _uiState.update { it.copy(isAuthenticated = true, isLocked = true) }
+            restoreSession()
+        }
+    }
+
+    private fun restoreSession() {
+        viewModelScope.launch {
+            val creds = credentialManager.loadStoredCredentials()
+            repository.authenticate(creds).onSuccess { token ->
+                val list = repository.getTicketsForProfile(_uiState.value.activeProfile)
+                credentialManager.saveTicketSnapshot(TicketSyncWorker.snapshotOf(list))
+                _uiState.update {
+                    it.copy(
+                        activeSessionToken = token,
+                        tickets = list,
+                        credentials = creds.copy(password = "")
+                    )
+                }
+                startRealtimeNotificationMonitor()
+            }
+        }
+    }
+
+    fun lockApp() {
+        if (_uiState.value.isAuthenticated) {
+            _uiState.update { it.copy(isLocked = true) }
+        }
+    }
+
+    fun unlockApp() {
+        _uiState.update { it.copy(isLocked = false) }
     }
 
     fun updateUsername(username: String) {
@@ -195,10 +231,14 @@ class MainViewModel(
                         emptyList()
                     }
 
+                    credentialManager.setPersistentLogin(creds.rememberMe)
+                    credentialManager.saveTicketSnapshot(TicketSyncWorker.snapshotOf(loadedTickets))
+
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             isAuthenticated = true,
+                            isLocked = false,
                             activeSessionToken = sessionToken,
                             tickets = loadedTickets,
                             notifications = welcomeNotifications,
@@ -234,6 +274,8 @@ class MainViewModel(
         pollingJob = viewModelScope.launch {
             while (isActive && _uiState.value.isAuthenticated) {
                 delay(35_000L)
+                // Em segundo plano o TicketSyncWorker assume (evita notificações duplicadas)
+                if (!AppVisibility.isForeground) continue
                 val previousMap = _uiState.value.tickets.associateBy { it.id }
                 val latestList = repository.pollLatestTicketsFromWeb(_uiState.value.activeProfile)
                 if (latestList.isNotEmpty() && previousMap.isNotEmpty()) {
@@ -256,6 +298,7 @@ class MainViewModel(
                         }
                     }
                     _uiState.update { it.copy(tickets = latestList) }
+                    credentialManager.saveTicketSnapshot(TicketSyncWorker.snapshotOf(latestList))
                 }
             }
         }
@@ -643,11 +686,14 @@ class MainViewModel(
 
     fun logout() {
         pollingJob?.cancel()
+        credentialManager.setPersistentLogin(false)
+        credentialManager.saveTicketSnapshot(emptyMap())
         viewModelScope.launch {
             repository.logout()
             _uiState.update {
                 it.copy(
                     isAuthenticated = false,
+                    isLocked = false,
                     activeSessionToken = null,
                     selectedTicket = null
                 )
