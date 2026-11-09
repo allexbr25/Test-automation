@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GLPI HOSB</string>
+    <string name="login_title">Faça login para sua conta</string>
+    <string name="login_user_label">Usuário</string>
+    <string name="login_password_label">Senha</string>
+    <string name="login_forgot_password">Esqueceu sua senha?</string>
+    <string name="login_origin_label">Origem de login</string>
+    <string name="login_origin_local">Banco de dados interno do GLPI</string>
+    <string name="login_api_url_label">URL do Servidor / API REST</string>
+    <string name="login_app_token_label">App-Token da API (app_token)</string>
+    <string name="login_user_token_label">User-Token Pessoal (Opcional)</string>
+    <string name="login_remember_me">Lembrar de mim (Keystore Criptografado)</string>
+    <string name="login_submit">Entrar</string>
+</resources>
