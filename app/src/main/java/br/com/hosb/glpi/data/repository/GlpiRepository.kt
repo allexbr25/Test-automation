@@ -458,6 +458,103 @@ class GlpiRepository(
         created
     }
 
+    /**
+     * Carrega a descrição detalhada e o histórico real de acompanhamentos (ITILFollowup / ITILSolution / TicketTask)
+     * diretamente de https://glpi.hosb.com.br/ajax/common.tabs.php para o chamado selecionado.
+     */
+    suspend fun fetchTicketDetailsFromWeb(ticketId: Int): Ticket? = withContext(Dispatchers.IO) {
+        val current = liveTickets.find { it.id == ticketId } ?: fallbackTickets.find { it.id == ticketId } ?: return@withContext null
+        try {
+            val tabUrl = "https://glpi.hosb.com.br/ajax/common.tabs.php?_glpi_tab=Ticket%24main&_target=%2Ffront%2Fticket.form.php&_itemtype=Ticket&id=$ticketId"
+            val req = Request.Builder()
+                .url(tabUrl)
+                .header("User-Agent", "GLPI-HOSB-Android/1.0")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("Referer", "https://glpi.hosb.com.br/front/ticket.form.php?id=$ticketId")
+                .get()
+                .build()
+
+            val tabHtml = webHttpClient.newCall(req).execute().use { it.body?.string() ?: "" }
+            if (tabHtml.isBlank()) return@withContext current
+
+            Regex("""name="_glpi_csrf_token"\s+value="([^"]+)"""").find(tabHtml)?.groupValues?.get(1)?.let {
+                lastCsrfToken = it
+            }
+
+            val parsedEntries = mutableListOf<TimelineEntry>()
+            var fullDescription = current.description
+
+            val itemRegex = Regex(
+                """<div class="timeline-item[^"]*"[^>]*data-itemtype="([^"]+)"[^>]*data-items-id="(\d+)"[^>]*>(.*?)(?=<div class="timeline-item|<div class="timeline-buttons|$)""",
+                RegexOption.DOT_MATCHES_ALL
+            )
+            val creatorRegex = Regex("""<div class="d-flex creator">(.*?)</div>""", RegexOption.DOT_MATCHES_ALL)
+            val contentRegex = Regex("""<div class="rich_text_container"[^>]*>(.*?)</div>""", RegexOption.DOT_MATCHES_ALL)
+            val dateRegex = Regex("""(\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2})""")
+
+            for (match in itemRegex.findAll(tabHtml)) {
+                val itemType = match.groupValues[1]
+                val itemId = match.groupValues[2].toIntOrNull() ?: continue
+                val blockHtml = match.groupValues[3]
+
+                val creatorText = creatorRegex.find(blockHtml)?.groupValues?.get(1)?.let { sanitizeText(it) }.orEmpty()
+                val dateStr = dateRegex.find(creatorText)?.groupValues?.get(1) ?: current.updatedAt
+                val authorStr = creatorText
+                    .replace(Regex("""^.*?\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}\s*(por\s*)?""", RegexOption.IGNORE_CASE), "")
+                    .replace(Regex("""\(\d+\).*$"""), "")
+                    .trim()
+                    .ifBlank { current.requesterName }
+
+                val richContent = contentRegex.find(blockHtml)?.groupValues?.get(1)?.let { sanitizeText(it) }.orEmpty()
+                if (richContent.isNotBlank()) {
+                    if (itemType == "Ticket") {
+                        fullDescription = richContent
+                        parsedEntries.add(
+                            TimelineEntry(
+                                id = itemId,
+                                type = "Abertura do Chamado",
+                                author = authorStr,
+                                role = "Requerente",
+                                date = dateStr,
+                                content = richContent
+                            )
+                        )
+                    } else {
+                        val labelType = when (itemType) {
+                            "ITILSolution" -> "Solução"
+                            "TicketTask" -> "Tarefa"
+                            else -> "Acompanhamento"
+                        }
+                        parsedEntries.add(
+                            TimelineEntry(
+                                id = itemId,
+                                type = labelType,
+                                author = authorStr,
+                                role = "Atendimento GLPI",
+                                date = dateStr,
+                                content = richContent
+                            )
+                        )
+                    }
+                }
+            }
+
+            if (parsedEntries.isNotEmpty() || fullDescription != current.description) {
+                // Preserva eventuais respostas locais recém-adicionadas nesta sessão
+                val localOnly = current.timeline.filter { it.id >= 900000 }
+                val mergedTimeline = if (parsedEntries.isNotEmpty()) parsedEntries + localOnly else current.timeline
+                val enriched = current.copy(
+                    description = fullDescription,
+                    timeline = mergedTimeline
+                )
+                updateTicketInLists(enriched)
+                return@withContext enriched
+            }
+        } catch (_: Exception) {
+        }
+        current
+    }
+
     suspend fun addFollowupToTicket(
         ticketId: Int,
         authorName: String,
@@ -468,28 +565,107 @@ class GlpiRepository(
         val cleanContent = sanitizeText(content)
         val now = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.forLanguageTag("pt-BR")).format(Date())
 
+        // 1. Envia resposta diretamente para o servidor web GLPI (glpi.hosb.com.br)
         try {
-            val api = buildApiService(currentBaseUrl)
-            api.addFollowup(
-                ticketId = ticketId,
-                payload = CreateFollowupPayload(
-                    CreateFollowupInput(
-                        ticketId = ticketId,
-                        content = cleanContent,
-                        isPrivate = if (isPrivate) 1 else 0
-                    )
-                )
-            )
+            val tabUrl = "https://glpi.hosb.com.br/ajax/common.tabs.php?_glpi_tab=Ticket%24main&_target=%2Ffront%2Fticket.form.php&_itemtype=Ticket&id=$ticketId"
+            val tabReq = Request.Builder()
+                .url(tabUrl)
+                .header("User-Agent", "GLPI-HOSB-Android/1.0")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("Referer", "https://glpi.hosb.com.br/front/ticket.form.php?id=$ticketId")
+                .get()
+                .build()
+            val tabHtml = webHttpClient.newCall(tabReq).execute().use { it.body?.string() ?: "" }
+            val csrf = Regex("""name="_glpi_csrf_token"\s+value="([^"]+)"""").find(tabHtml)?.groupValues?.get(1)
+                ?: lastCsrfToken
+
+            if (!csrf.isNullOrBlank()) {
+                when (entryType) {
+                    "Solução" -> {
+                        val form = FormBody.Builder()
+                            .add("itemtype", "Ticket")
+                            .add("items_id", ticketId.toString())
+                            .add("_no_message_link", "1")
+                            .add("content", cleanContent)
+                            .add("solutiontypes_id", "0")
+                            .add("add", "")
+                            .add("_glpi_csrf_token", csrf)
+                            .build()
+                        val postReq = Request.Builder()
+                            .url("https://glpi.hosb.com.br/front/itilsolution.form.php")
+                            .header("Referer", "https://glpi.hosb.com.br/front/ticket.form.php?id=$ticketId")
+                            .header("User-Agent", "GLPI-HOSB-Android/1.0")
+                            .post(form)
+                            .build()
+                        webHttpClient.newCall(postReq).execute().close()
+                    }
+                    "Tarefa" -> {
+                        val form = FormBody.Builder()
+                            .add("itemtype", "Ticket")
+                            .add("tickets_id", ticketId.toString())
+                            .add("content", cleanContent)
+                            .add("is_private", if (isPrivate) "1" else "0")
+                            .add("state", "2")
+                            .add("actiontime", "900")
+                            .add("add", "")
+                            .add("_glpi_csrf_token", csrf)
+                            .build()
+                        val postReq = Request.Builder()
+                            .url("https://glpi.hosb.com.br/front/tickettask.form.php")
+                            .header("Referer", "https://glpi.hosb.com.br/front/ticket.form.php?id=$ticketId")
+                            .header("User-Agent", "GLPI-HOSB-Android/1.0")
+                            .post(form)
+                            .build()
+                        webHttpClient.newCall(postReq).execute().close()
+                    }
+                    else -> {
+                        val form = FormBody.Builder()
+                            .add("itemtype", "Ticket")
+                            .add("items_id", ticketId.toString())
+                            .add("content", cleanContent)
+                            .add("is_private", if (isPrivate) "1" else "0")
+                            .add("requesttypes_id", "1")
+                            .add("pending", "0")
+                            .add("add", "")
+                            .add("_glpi_csrf_token", csrf)
+                            .build()
+                        val postReq = Request.Builder()
+                            .url("https://glpi.hosb.com.br/front/itilfollowup.form.php")
+                            .header("Referer", "https://glpi.hosb.com.br/front/ticket.form.php?id=$ticketId")
+                            .header("User-Agent", "GLPI-HOSB-Android/1.0")
+                            .post(form)
+                            .build()
+                        webHttpClient.newCall(postReq).execute().close()
+                    }
+                }
+            }
         } catch (_: Exception) {
         }
 
-        val targetList = if (liveTickets.isNotEmpty()) liveTickets else fallbackTickets
-        val index = targetList.indexOfFirst { it.id == ticketId }
-        if (index == -1) return@withContext null
+        // 2. Também envia via API REST caso configurada com App-Token
+        if (currentAppToken.isNotEmpty()) {
+            try {
+                val api = buildApiService(currentBaseUrl)
+                api.addFollowup(
+                    ticketId = ticketId,
+                    payload = CreateFollowupPayload(
+                        CreateFollowupInput(
+                            ticketId = ticketId,
+                            content = cleanContent,
+                            isPrivate = if (isPrivate) 1 else 0
+                        )
+                    )
+                )
+            } catch (_: Exception) {
+            }
+        }
 
-        val existing = targetList[index]
+        val existing = liveTickets.find { it.id == ticketId }
+            ?: fallbackTickets.find { it.id == ticketId }
+            ?: return@withContext null
+
         val newEntry = TimelineEntry(
-            id = (existing.timeline.maxOfOrNull { it.id } ?: 900) + 1,
+            id = (existing.timeline.maxOfOrNull { it.id } ?: 900000).coerceAtLeast(900000) + 1,
             type = entryType,
             author = authorName,
             role = "Técnico / Usuário Autenticado",
@@ -497,22 +673,35 @@ class GlpiRepository(
             content = cleanContent,
             isPrivate = isPrivate
         )
+        val updatedStatus = if (entryType == "Solução") TicketStatus.SOLVED else existing.status
         val updated = existing.copy(
+            status = updatedStatus,
             updatedAt = now,
             timeline = existing.timeline + newEntry
         )
-        targetList[index] = updated
+        updateTicketInLists(updated)
         updated
     }
 
     suspend fun updateTicketStatus(ticketId: Int, newStatus: TicketStatus): Ticket? = withContext(Dispatchers.IO) {
-        val targetList = if (liveTickets.isNotEmpty()) liveTickets else fallbackTickets
-        val index = targetList.indexOfFirst { it.id == ticketId }
-        if (index == -1) return@withContext null
+        val existing = liveTickets.find { it.id == ticketId }
+            ?: fallbackTickets.find { it.id == ticketId }
+            ?: return@withContext null
         val now = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.forLanguageTag("pt-BR")).format(Date())
-        val updated = targetList[index].copy(status = newStatus, updatedAt = now)
-        targetList[index] = updated
+        val updated = existing.copy(status = newStatus, updatedAt = now)
+        updateTicketInLists(updated)
         updated
+    }
+
+    private fun updateTicketInLists(updated: Ticket) {
+        val liveIdx = liveTickets.indexOfFirst { it.id == updated.id }
+        if (liveIdx != -1) {
+            liveTickets[liveIdx] = updated
+        }
+        val fbIdx = fallbackTickets.indexOfFirst { it.id == updated.id }
+        if (fbIdx != -1) {
+            fallbackTickets[fbIdx] = updated
+        }
     }
 
     suspend fun logout() = withContext(Dispatchers.IO) {

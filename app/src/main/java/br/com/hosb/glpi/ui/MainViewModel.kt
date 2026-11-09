@@ -239,6 +239,21 @@ class MainViewModel(
 
     fun selectTicket(ticket: Ticket?) {
         _uiState.update { it.copy(selectedTicket = ticket) }
+        if (ticket != null) {
+            viewModelScope.launch {
+                val enriched = repository.fetchTicketDetailsFromWeb(ticket.id)
+                if (enriched != null) {
+                    val allTickets = repository.getTicketsForProfile(_uiState.value.activeProfile)
+                    _uiState.update { state ->
+                        if (state.selectedTicket?.id == enriched.id) {
+                            state.copy(tickets = allTickets, selectedTicket = enriched)
+                        } else {
+                            state.copy(tickets = allTickets)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun toggleNewTicketSheet(open: Boolean) {

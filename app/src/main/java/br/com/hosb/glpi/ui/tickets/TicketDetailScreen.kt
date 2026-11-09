@@ -63,12 +63,13 @@ fun TicketDetailScreen(
     var followupText by rememberSaveable { mutableStateOf("") }
     var isPrivateFollowup by rememberSaveable { mutableStateOf(false) }
     var followupType by rememberSaveable { mutableStateOf("Acompanhamento") }
+    var lastSentConfirmation by rememberSaveable { mutableStateOf<String?>(null) }
 
     val tabs = listOf(
-        "Chamado & Atores",
-        "Timeline (${ticket.timeline.size})",
-        "Aprovações (${ticket.approvals.size})",
-        "Segurança & Logs"
+        "💬 Responder & Conversa (${ticket.timeline.size})",
+        "📋 Dados & Atores",
+        "✔️ Aprovações (${ticket.approvals.size})",
+        "🛡️ Segurança & Logs"
     )
 
     Column(
@@ -83,7 +84,7 @@ fun TicketDetailScreen(
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(14.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
@@ -103,15 +104,18 @@ fun TicketDetailScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "• ${ticket.type.label}",
+                                text = "• ${ticket.status.label}",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                         Text(
                             text = ticket.title,
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -133,16 +137,16 @@ fun TicketDetailScreen(
                         FilterChip(
                             selected = ticket.status == statusOption,
                             onClick = { onChangeStatus(ticket.id, statusOption) },
-                            label = { Text(statusOption.label, maxLines = 1, softWrap = false) }
+                            label = { Text("Status: ${statusOption.label}", maxLines = 1, softWrap = false) }
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
-        // Abas baseadas em Ticket$main do GLPI (Chamado, Timeline, Aprovações, Histórico/Segurança)
+        // Abas baseadas em Ticket$main do GLPI — "Responder & Conversa" é a primeira aba padrão
         ScrollableTabRow(
             selectedTabIndex = selectedTabIndex,
             edgePadding = 0.dp,
@@ -157,7 +161,7 @@ fun TicketDetailScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(
             modifier = Modifier
@@ -166,20 +170,26 @@ fun TicketDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             when (selectedTabIndex) {
-                0 -> TicketMetadataAndActorsTab(ticket)
-                1 -> TicketTimelineTab(
+                0 -> TicketTimelineTab(
                     ticket = ticket,
                     followupText = followupText,
                     isPrivate = isPrivateFollowup,
                     followupType = followupType,
-                    onFollowupTextChange = { followupText = it },
+                    confirmationMessage = lastSentConfirmation,
+                    onFollowupTextChange = {
+                        followupText = it
+                        lastSentConfirmation = null
+                    },
                     onPrivateChange = { isPrivateFollowup = it },
                     onTypeChange = { followupType = it },
                     onSendFollowup = {
-                        onAddFollowup(ticket.id, followupText, isPrivateFollowup, followupType)
+                        val sentType = followupType
+                        onAddFollowup(ticket.id, followupText, isPrivateFollowup, sentType)
                         followupText = ""
+                        lastSentConfirmation = "✔ $sentType enviado e registrado no chamado #${ticket.id}!"
                     }
                 )
+                1 -> TicketMetadataAndActorsTab(ticket)
                 2 -> TicketApprovalsTab(ticket)
                 3 -> TicketSecurityAuditTab(ticket, sessionToken)
             }
@@ -196,7 +206,7 @@ private fun TicketMetadataAndActorsTab(ticket: Ticket) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Descrição do Chamado",
+                text = "Descrição Original do Chamado",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -244,47 +254,119 @@ private fun TicketTimelineTab(
     followupText: String,
     isPrivate: Boolean,
     followupType: String,
+    confirmationMessage: String?,
     onFollowupTextChange: (String) -> Unit,
     onPrivateChange: (Boolean) -> Unit,
     onTypeChange: (String) -> Unit,
     onSendFollowup: () -> Unit
 ) {
-    // Compositor de Novo Acompanhamento / Tarefa / Solução
+    val quickReplies = listOf(
+        "Em verificação pela equipe TIC.",
+        "Favor informar mais detalhes ou anexar print da tela.",
+        "Atendimento concluído e validado no setor.",
+        "Encaminhado ao setor responsável para tratativa."
+    )
+
+    // Card Principal para Responder ao Chamado (Acompanhamento / Solução / Tarefa)
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Nova Interação no Chamado",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
+                text = "💬 Responder ao Chamado #${ticket.id}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Requerente: ${ticket.requesterName} • Setor: ${ticket.location}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
 
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (!confirmationMessage.isNullOrBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFF16A34A).copy(alpha = 0.14f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp)
+                ) {
+                    Text(
+                        text = confirmationMessage,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF15803D),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = "Tipo de resposta no GLPI:",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("Acompanhamento", "Tarefa", "Solução").forEach { type ->
+                listOf(
+                    "Acompanhamento" to "💬 Responder (Acompanhamento)",
+                    "Solução" to "✅ Propor Solução",
+                    "Tarefa" to "🛠️ Registrar Tarefa"
+                ).forEach { (typeKey, typeLabel) ->
                     FilterChip(
-                        selected = followupType == type,
-                        onClick = { onTypeChange(type) },
-                        label = { Text(type, maxLines = 1, softWrap = false) }
+                        selected = followupType == typeKey,
+                        onClick = { onTypeChange(typeKey) },
+                        label = { Text(typeLabel, maxLines = 1, softWrap = false) }
                     )
                 }
             }
 
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "Respostas rápidas (toque para preencher):",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                quickReplies.forEach { preset ->
+                    FilterChip(
+                        selected = followupText == preset,
+                        onClick = { onFollowupTextChange(preset) },
+                        label = { Text(preset, maxLines = 1, softWrap = false) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
             OutlinedTextField(
                 value = followupText,
                 onValueChange = onFollowupTextChange,
-                label = { Text("Adicionar $followupType...") },
+                label = { Text("Escreva sua resposta ($followupType)...") },
+                placeholder = { Text("Digite a mensagem que será enviada ao chamado #${ticket.id}...") },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -314,17 +396,52 @@ private fun TicketTimelineTab(
 
                 Button(
                     onClick = onSendFollowup,
-                    enabled = followupText.isNotBlank()
+                    enabled = followupText.isNotBlank(),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Enviar", maxLines = 1, softWrap = false)
+                    Text("Enviar Resposta", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
             }
         }
     }
 
-    ticket.timeline.forEach { item ->
+    // Resumo / Descrição do Chamado logo abaixo da caixa de resposta
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = "📄 Descrição e Contexto do Chamado #${ticket.id}",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = ticket.description,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "📂 ${ticket.category}  •  👥 Grupo: ${ticket.assignedGroup}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+
+    Text(
+        text = "Histórico de Mensagens e Acompanhamentos (${ticket.timeline.size})",
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(horizontal = 4.dp)
+    )
+
+    ticket.timeline.reversed().forEach { item ->
         Card(
             shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -337,7 +454,7 @@ private fun TicketTimelineTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${item.type} • ${item.author}",
+                        text = "${item.type} • ${item.author}" + if (item.isPrivate) " 🔒 (Privado)" else "",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,

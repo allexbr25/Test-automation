@@ -42,32 +42,32 @@ jobs:
       - name: Compilar APK Release Assinado (GLPI HOSB)
         run: |
           gradle assembleRelease --no-daemon
-          cp app/build/outputs/apk/release/app-release.apk GLPI-HOSB-v1.0.4.apk
+          cp app/build/outputs/apk/release/app-release.apk GLPI-HOSB-v1.0.5.apk
 
       - name: Verificar Assinatura V1/V2/V3 do APK
         run: |
-          jarsigner -verify -verbose -certs GLPI-HOSB-v1.0.4.apk | tail -n 20
+          jarsigner -verify -verbose -certs GLPI-HOSB-v1.0.5.apk | tail -n 20
 
       - name: Publicar APK como Artefato no GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: GLPI-HOSB-Android-APK-v1.0.4
-          path: GLPI-HOSB-v1.0.4.apk
+          name: GLPI-HOSB-Android-APK-v1.0.5
+          path: GLPI-HOSB-v1.0.5.apk
 
       - name: Criar/Atualizar Release com o APK Assinado para Download Direto
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.4
-          name: "GLPI HOSB Android APK v1.0.4"
+          tag_name: v1.0.5
+          name: "GLPI HOSB Android APK v1.0.5"
           body: |
-            ### 📱 Aplicativo Android GLPI HOSB (`glpi.hosb.com.br`) — Versão 1.0.4
-            - **Correção de Responsividade Mobile**: barra de paginação (`Exibindo 1 a 50...` + botões `◀ Anterior` e `Próxima ▶`), filtros e cabeçalhos com `Modifier.weight(1f)` e `softWrap = false`, impedindo quebra vertical de letras em qualquer tamanho de tela.
-            - **Logo Oficial HOSB ("DESDE 1966")** com proporção nativa sem distorção (`drawable-nodpi` + ícones `mipmap`).
-            - **Sincronização Dinâmica de Chamados ao Logar** e ao alternar perfis (`Perfil_TIC`, `Admin`, `Super-Admin`, `Supervisor`, `Perfil_Usuario_Padrao`).
+            ### 📱 Aplicativo Android GLPI HOSB (`glpi.hosb.com.br`) — Versão 1.0.5
+            - **Resposta Direta aos Chamados (Acompanhamento, Solução e Tarefa)**: botão `💬 Responder Chamado` em cada card da lista e painel principal `💬 Responder & Conversa` logo ao abrir o chamado, integrado com `itilfollowup.form.php`, `itilsolution.form.php` e `tickettask.form.php` do servidor GLPI HOSB.
+            - **Respostas Rápidas em 1 Toque** + opção **Privado (Somente TIC)** + carregamento em tempo real da descrição e histórico de conversas do chamado.
+            - **Correção de Responsividade Mobile**: barra de paginação (`Exibindo 1 a 50...` + botões `◀ Anterior` e `Próxima ▶`) e filtros 100% responsivos sem quebra vertical.
             - **Assinatura completa V1 + V2 + V3**.
 
-            👉 **Clique em `GLPI-HOSB-v1.0.4.apk` abaixo para baixar e instalar.**
+            👉 **Clique em `GLPI-HOSB-v1.0.5.apk` abaixo para baixar e instalar.**
           files: |
-            GLPI-HOSB-v1.0.4.apk
+            GLPI-HOSB-v1.0.5.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
