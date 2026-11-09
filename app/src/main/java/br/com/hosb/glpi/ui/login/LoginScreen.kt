@@ -58,7 +58,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -114,32 +113,34 @@ fun LoginScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 480.dp)
+                .widthIn(max = 460.dp)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Logo Oficial HOSB (logo_HOSB_curva.JPG)
+            // Logo Oficial HOSB com proporção fixa exata (sem esticar lateralmente)
             Surface(
                 shape = RoundedCornerShape(22.dp),
                 color = Color.White,
                 shadowElevation = 8.dp,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.size(width = 132.dp, height = 126.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp)
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.logo_hosb_curva),
+                        painter = painterResource(id = R.drawable.logo_hosb),
                         contentDescription = "Logo HOSB - Desde 1966",
-                        modifier = Modifier
-                            .height(82.dp)
-                            .clip(RoundedCornerShape(8.dp)),
+                        modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             Text(
                 text = "GLPI HOSB • glpi.hosb.com.br",
@@ -151,7 +152,7 @@ fun LoginScreen(
                 text = "Central de Serviços e Gestão de Chamados",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.82f),
-                modifier = Modifier.padding(bottom = 18.dp)
+                modifier = Modifier.padding(bottom = 16.dp)
             )
 
             // Card Principal de Login (main-content-card do GLPI)
@@ -322,7 +323,7 @@ fun LoginScreen(
                     HorizontalDivider()
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Seção de Credenciais da API REST (App-Token, User-Token e URL glpi.hosb.com.br)
+                    // Seção de Credenciais da API REST (Opcional)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

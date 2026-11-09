@@ -39,7 +39,6 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Badge
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -117,17 +116,23 @@ fun TicketDashboardScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
                             color = Color.White,
-                            shape = RoundedCornerShape(8.dp),
-                            shadowElevation = 2.dp
+                            shape = RoundedCornerShape(10.dp),
+                            shadowElevation = 2.dp,
+                            modifier = Modifier.size(width = 42.dp, height = 40.dp)
                         ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.logo_hosb_curva),
-                                contentDescription = "Logo HOSB",
+                            Box(
+                                contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .height(34.dp)
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                                contentScale = ContentScale.Fit
-                            )
+                                    .fillMaxSize()
+                                    .padding(4.dp)
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.logo_hosb),
+                                    contentDescription = "Logo HOSB",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
@@ -137,7 +142,7 @@ fun TicketDashboardScreen(
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Text(
-                                text = "${uiState.totalFilteredCount} chamados • HOSB",
+                                text = "Entidade: HOSB",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -196,14 +201,14 @@ fun TicketDashboardScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Entidade ativa: HOSB (Matriz Fonseca)",
+                                    text = "Entidade ativa: HOSB",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             HorizontalDivider()
                             Text(
-                                text = "ALTERAR PERFIL (/Session/ChangeProfile)",
+                                text = "PERFIS DISPONÍVEIS",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
@@ -220,7 +225,7 @@ fun TicketDashboardScreen(
                                                 fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Medium
                                             )
                                             Text(
-                                                text = "${profile.description} • ${if (profile.showsAllEntitiesTickets) "331 chamados" else "127 chamados"}",
+                                                text = profile.description,
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -419,7 +424,7 @@ private fun TicketListPane(
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = onSearchQueryChange,
-                placeholder = { Text("Pesquisar ID (#18333), título, requerente...") },
+                placeholder = { Text("Pesquisar ID, título, requerente...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (uiState.searchQuery.isNotEmpty()) {
@@ -532,11 +537,11 @@ private fun TicketListPane(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf(25, 50, 100, 350).forEach { limit ->
+                        listOf(25, 50, 100, 500).forEach { limit ->
                             FilterChip(
                                 selected = uiState.pageSize == limit,
                                 onClick = { onPageSizeChange(limit) },
-                                label = { Text(if (limit >= 350) "Todos (${uiState.tickets.size})" else "$limit / pág") }
+                                label = { Text(if (limit >= 500) "Todos" else "$limit / pág") }
                             )
                         }
                     }
@@ -571,7 +576,7 @@ private fun TicketListPane(
             }
         }
 
-        // Barra de Paginação estilo GLPI ("Exibindo 1 a 50 de 127 linhas")
+        // Barra de Paginação estilo GLPI
         val startItem = if (uiState.totalFilteredCount == 0) 0 else ((uiState.currentPage - 1) * uiState.pageSize) + 1
         val endItem = (startItem + uiState.pagedTickets.size - 1).coerceAtLeast(0)
 
