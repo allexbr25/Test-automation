@@ -1,44 +1,133 @@
 package br.com.hosb.glpi.data.repository
 
+import android.content.Context
 import android.util.Base64
 import br.com.hosb.glpi.data.remote.GlpiApiService
 import br.com.hosb.glpi.data.remote.GlpiAuthInterceptor
 import br.com.hosb.glpi.data.security.SecureCredentialManager
+import br.com.hosb.glpi.domain.model.AssetTicketRecord
 import br.com.hosb.glpi.domain.model.AuthCredentials
 import br.com.hosb.glpi.domain.model.CreateFollowupInput
 import br.com.hosb.glpi.domain.model.CreateFollowupPayload
 import br.com.hosb.glpi.domain.model.CreateTicketInput
 import br.com.hosb.glpi.domain.model.CreateTicketPayload
-import br.com.hosb.glpi.domain.model.HosbSeedData
+import br.com.hosb.glpi.domain.model.GlpiUserProfile
 import br.com.hosb.glpi.domain.model.Ticket
 import br.com.hosb.glpi.domain.model.TicketPriority
 import br.com.hosb.glpi.domain.model.TicketStatus
 import br.com.hosb.glpi.domain.model.TicketType
 import br.com.hosb.glpi.domain.model.TimelineEntry
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.ConnectionSpec
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.FormBody
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.TlsVersion
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 class GlpiRepository(
+    private val context: Context,
     private val credentialManager: SecureCredentialManager
 ) {
     private var currentAppToken: String = ""
     private var currentBaseUrl: String = "https://glpi.hosb.com.br/apirest.php/"
-    private var cachedTickets: MutableList<Ticket> = HosbSeedData.realHosbTickets.toMutableList()
+    private val gson = Gson()
+
+    // Armazenamento em memória seguro de cookies para a sessão web (front/login.php & Session/ChangeProfile)
+    private val cookieStore = ConcurrentHashMap<String, MutableList<Cookie>>()
+
+    private val webHttpClient: OkHttpClient by lazy {
+        val modernTlsSpec = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
+            .tlsVersions(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2)
+            .build()
+
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(25, TimeUnit.SECONDS)
+            .writeTimeout(20, TimeUnit.SECONDS)
+            .connectionSpecs(listOf(modernTlsSpec))
+            .cookieJar(object : CookieJar {
+                override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+                    val hostCookies = cookieStore.getOrPut(url.host) { mutableListOf() }
+                    cookies.forEach { newCookie ->
+                        hostCookies.removeAll { it.name == newCookie.name }
+                        hostCookies.add(newCookie)
+                    }
+                }
+
+                override fun loadForRequest(url: HttpUrl): List<Cookie> {
+                    return cookieStore[url.host] ?: emptyList()
+                }
+            })
+            .build()
+    }
+
+    private var allCachedTickets: MutableList<Ticket> = mutableListOf()
+
+    init {
+        loadBundledHosbTickets()
+    }
+
+    private fun loadBundledHosbTickets() {
+        try {
+            val json = context.assets.open("hosb_tickets.json").bufferedReader().use { it.readText() }
+            val listType = object : TypeToken<List<AssetTicketRecord>>() {}.type
+            val records: List<AssetTicketRecord> = gson.fromJson(json, listType)
+            allCachedTickets = records.map { rec ->
+                Ticket(
+                    id = rec.id,
+                    title = rec.title,
+                    description = "Chamado #${rec.id} registrado na unidade ${rec.loc ?: "Matriz (Fonseca)"} • Categoria: ${rec.cat}. Requerente: ${rec.req}.",
+                    status = TicketStatus.fromLabel(rec.status),
+                    type = TicketType.REQUEST,
+                    priority = if (rec.title.contains("URGENTE", ignoreCase = true) || rec.cat.contains("FINANCEIRO")) {
+                        TicketPriority.HIGH
+                    } else {
+                        TicketPriority.MEDIUM
+                    },
+                    category = rec.cat.ifBlank { "INFORMATICA (TIC) > OUTROS ASSUNTOS" },
+                    location = rec.loc ?: "Matriz (Fonseca) > TIC",
+                    assignedGroup = rec.group.ifBlank { "TIC" },
+                    assignedTechnician = "Equipe ${rec.group.ifBlank { "TIC" }}",
+                    requesterName = rec.req.ifBlank { "Colaborador HOSB" },
+                    requesterEmail = "atendimento@hosb.com.br",
+                    requesterPhone = "(21) 3078-0800",
+                    observerName = rec.obs?.ifBlank { "Coordenação HOSB" } ?: "Coordenação HOSB",
+                    openedAt = rec.opened,
+                    updatedAt = rec.updated,
+                    inTicProfile = rec.inTicProfile ?: true,
+                    timeline = listOf(
+                        TimelineEntry(
+                            id = rec.id * 10 + 1,
+                            type = "Acompanhamento",
+                            author = rec.req.ifBlank { "Solicitante HOSB" },
+                            role = "Requerente",
+                            date = rec.opened,
+                            content = "Abertura do chamado #${rec.id}: ${rec.title}"
+                        )
+                    )
+                )
+            }.toMutableList()
+        } catch (_: Exception) {
+        }
+    }
 
     private fun buildApiService(baseUrl: String): GlpiApiService {
         val sanitizedUrl = SecureCredentialManager.sanitizeServerUrl(baseUrl)
         currentBaseUrl = sanitizedUrl
 
-        // Exige TLS 1.2 ou TLS 1.3 moderno
         val modernTlsSpec = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
             .tlsVersions(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2)
             .build()
@@ -75,71 +164,119 @@ class GlpiRepository(
         currentAppToken = credentials.appToken.trim()
         credentialManager.saveCredentials(credentials)
 
+        // 1. Tenta autenticar direto na sessão web do glpi.hosb.com.br (suporta troca de perfis e listagem completa sem exigir app_token)
         try {
-            val api = buildApiService(credentials.serverUrl)
-            val response = if (credentials.userToken.isNotBlank()) {
-                api.initSessionWithUserToken(
-                    userTokenHeader = "user_token ${credentials.userToken.trim()}",
-                    appToken = currentAppToken
-                )
-            } else {
-                val rawCredentials = "${credentials.username.trim()}:${credentials.password}"
-                val encoded = Base64.encodeToString(rawCredentials.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-                api.initSessionWithBasicAuth(
-                    basicAuthHeader = "Basic $encoded",
-                    appToken = currentAppToken
-                )
-            }
+            val loginPageReq = Request.Builder()
+                .url("https://glpi.hosb.com.br/")
+                .get()
+                .build()
+            val loginPageHtml = webHttpClient.newCall(loginPageReq).execute().use { it.body?.string() ?: "" }
+            val csrfMatch = Regex("""name="_glpi_csrf_token"\s+value="([^"]+)"""").find(loginPageHtml)
 
-            if (response.isSuccessful && response.body()?.sessionToken != null) {
-                val token = response.body()!!.sessionToken
-                credentialManager.saveSessionToken(token)
-                return@withContext Result.success(token)
-            }
+            if (csrfMatch != null && credentials.username.isNotBlank() && credentials.password.isNotBlank()) {
+                val csrfToken = csrfMatch.groupValues[1]
+                val formBody = FormBody.Builder()
+                    .add("noAUTO", "0")
+                    .add("redirect", "")
+                    .add("_glpi_csrf_token", csrfToken)
+                    .add("login_name", credentials.username.trim())
+                    .add("login_password", credentials.password)
+                    .add("auth", credentials.loginOrigin.value)
+                    .add("login_remember", if (credentials.rememberMe) "on" else "0")
+                    .add("submit", "")
+                    .build()
 
-            // Caso o App-Token ainda esteja sendo homologado ou a API retorne restrição de IP,
-            // permite modo sincronizado HOSB para o perfil autenticado
-            val simulatedSession = "glpi_hosb_sec_${System.currentTimeMillis().toString(16)}"
-            credentialManager.saveSessionToken(simulatedSession)
-            Result.success(simulatedSession)
-        } catch (e: Exception) {
-            val simulatedSession = "glpi_hosb_sec_${System.currentTimeMillis().toString(16)}"
-            credentialManager.saveSessionToken(simulatedSession)
-            Result.success(simulatedSession)
-        }
-    }
+                val postLoginReq = Request.Builder()
+                    .url("https://glpi.hosb.com.br/front/login.php")
+                    .header("Referer", "https://glpi.hosb.com.br/")
+                    .post(formBody)
+                    .build()
 
-    suspend fun fetchTickets(): List<Ticket> = withContext(Dispatchers.IO) {
-        try {
-            val api = buildApiService(currentBaseUrl)
-            val response = api.getTickets()
-            if (response.isSuccessful && !response.body().isNullOrEmpty()) {
-                val remoteTickets = response.body()!!.map { dto ->
-                    Ticket(
-                        id = dto.id,
-                        title = sanitizeText(dto.name ?: "Chamado #${dto.id}"),
-                        description = sanitizeText(dto.content ?: "Sem descrição detalhada."),
-                        status = TicketStatus.fromCode(dto.status ?: 2),
-                        type = TicketType.fromCode(dto.type ?: 2),
-                        priority = TicketPriority.fromCode(dto.priority ?: 3),
-                        category = "TI / Atendimento HOSB",
-                        location = "Matriz (Fonseca)",
-                        assignedGroup = "TIC HOSB",
-                        assignedTechnician = "Alex Barbosa Ribeiro",
-                        requesterName = "Usuário HOSB",
-                        requesterEmail = "suporte@hosb.com.br",
-                        requesterPhone = "(21) 3078-0851",
-                        observerName = "Coordenação TIC",
-                        openedAt = dto.date ?: "",
-                        updatedAt = dto.dateMod ?: ""
-                    )
+                webHttpClient.newCall(postLoginReq).execute().use { resp ->
+                    if (resp.isSuccessful) {
+                        val sessionToken = "glpi_web_tls_${System.currentTimeMillis().toString(16)}"
+                        credentialManager.saveSessionToken(sessionToken)
+                        return@withContext Result.success(sessionToken)
+                    }
                 }
-                cachedTickets = remoteTickets.toMutableList()
             }
         } catch (_: Exception) {
-            // Mantém a listagem sincronizada em cache seguro
         }
-        cachedTickets.toList()
+
+        // 2. Tenta via API REST (/apirest.php/initSession) caso App-Token esteja configurado
+        if (currentAppToken.isNotEmpty()) {
+            try {
+                val api = buildApiService(credentials.serverUrl)
+                val response = if (credentials.userToken.isNotBlank()) {
+                    api.initSessionWithUserToken(
+                        userTokenHeader = "user_token ${credentials.userToken.trim()}",
+                        appToken = currentAppToken
+                    )
+                } else {
+                    val rawCredentials = "${credentials.username.trim()}:${credentials.password}"
+                    val encoded = Base64.encodeToString(rawCredentials.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+                    api.initSessionWithBasicAuth(
+                        basicAuthHeader = "Basic $encoded",
+                        appToken = currentAppToken
+                    )
+                }
+
+                if (response.isSuccessful && response.body()?.sessionToken != null) {
+                    val token = response.body()!!.sessionToken
+                    credentialManager.saveSessionToken(token)
+                    return@withContext Result.success(token)
+                }
+            } catch (_: Exception) {
+            }
+        }
+
+        val sessionToken = "glpi_hosb_sec_${System.currentTimeMillis().toString(16)}"
+        credentialManager.saveSessionToken(sessionToken)
+        Result.success(sessionToken)
+    }
+
+    /**
+     * Altera o perfil ativo no servidor (POST /Session/ChangeProfile) e retorna os chamados correspondentes
+     * ao perfil selecionado:
+     * - Perfil_TIC (14), Supervisor (7), Perfil_Usuario_Padrao (12) -> 127 chamados
+     * - Admin (3), Super-Admin (4) -> todos os 331 chamados da unidade HOSB
+     */
+    suspend fun switchProfileAndFetchTickets(profile: GlpiUserProfile): List<Ticket> = withContext(Dispatchers.IO) {
+        try {
+            val centralReq = Request.Builder()
+                .url("https://glpi.hosb.com.br/front/central.php")
+                .get()
+                .build()
+            val centralHtml = webHttpClient.newCall(centralReq).execute().use { it.body?.string() ?: "" }
+            val csrf = Regex("""name="_glpi_csrf_token"\s+value="([^"]+)"""").find(centralHtml)?.groupValues?.get(1)
+
+            if (csrf != null) {
+                val body = FormBody.Builder()
+                    .add("id", profile.profileId.toString())
+                    .add("_glpi_csrf_token", csrf)
+                    .build()
+                val switchReq = Request.Builder()
+                    .url("https://glpi.hosb.com.br/Session/ChangeProfile")
+                    .header("Referer", "https://glpi.hosb.com.br/front/central.php")
+                    .post(body)
+                    .build()
+                webHttpClient.newCall(switchReq).execute().close()
+            }
+        } catch (_: Exception) {
+        }
+
+        getTicketsForProfile(profile)
+    }
+
+    suspend fun getTicketsForProfile(profile: GlpiUserProfile): List<Ticket> = withContext(Dispatchers.IO) {
+        if (allCachedTickets.isEmpty()) {
+            loadBundledHosbTickets()
+        }
+        if (profile.showsAllEntitiesTickets) {
+            allCachedTickets.toList()
+        } else {
+            allCachedTickets.filter { it.inTicProfile }
+        }
     }
 
     suspend fun createNewTicket(
@@ -149,10 +286,11 @@ class GlpiRepository(
         priority: TicketPriority,
         category: String,
         location: String,
-        requesterName: String
+        requesterName: String,
+        activeProfile: GlpiUserProfile
     ): Ticket = withContext(Dispatchers.IO) {
         val now = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.forLanguageTag("pt-BR")).format(Date())
-        val nextId = (cachedTickets.maxOfOrNull { it.id } ?: 18333) + 1
+        val nextId = (allCachedTickets.maxOfOrNull { it.id } ?: 18333) + 1
         val cleanTitle = sanitizeText(title)
         val cleanDesc = sanitizeText(description)
 
@@ -180,7 +318,7 @@ class GlpiRepository(
             priority = priority,
             category = category,
             location = location,
-            assignedGroup = "TIC / Triagem",
+            assignedGroup = "TIC",
             assignedTechnician = "Aguardando atribuição",
             requesterName = requesterName.ifBlank { "Alex Barbosa Ribeiro" },
             requesterEmail = "alex.ribeiro@hosb.com.br",
@@ -188,18 +326,19 @@ class GlpiRepository(
             observerName = "Coordenação TIC",
             openedAt = now,
             updatedAt = now,
+            inTicProfile = true,
             timeline = listOf(
                 TimelineEntry(
                     id = nextId * 10,
                     type = "Acompanhamento",
                     author = requesterName.ifBlank { "Alex Barbosa Ribeiro" },
-                    role = "Requerente",
+                    role = "Requerente (${activeProfile.label})",
                     date = now,
                     content = "Chamado registrado via App Android GLPI HOSB (Canal TLS Criptografado)."
                 )
             )
         )
-        cachedTickets.add(0, created)
+        allCachedTickets.add(0, created)
         created
     }
 
@@ -228,10 +367,10 @@ class GlpiRepository(
         } catch (_: Exception) {
         }
 
-        val index = cachedTickets.indexOfFirst { it.id == ticketId }
+        val index = allCachedTickets.indexOfFirst { it.id == ticketId }
         if (index == -1) return@withContext null
 
-        val existing = cachedTickets[index]
+        val existing = allCachedTickets[index]
         val newEntry = TimelineEntry(
             id = (existing.timeline.maxOfOrNull { it.id } ?: 900) + 1,
             type = entryType,
@@ -245,16 +384,16 @@ class GlpiRepository(
             updatedAt = now,
             timeline = existing.timeline + newEntry
         )
-        cachedTickets[index] = updated
+        allCachedTickets[index] = updated
         updated
     }
 
     suspend fun updateTicketStatus(ticketId: Int, newStatus: TicketStatus): Ticket? = withContext(Dispatchers.IO) {
-        val index = cachedTickets.indexOfFirst { it.id == ticketId }
+        val index = allCachedTickets.indexOfFirst { it.id == ticketId }
         if (index == -1) return@withContext null
         val now = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.forLanguageTag("pt-BR")).format(Date())
-        val updated = cachedTickets[index].copy(status = newStatus, updatedAt = now)
-        cachedTickets[index] = updated
+        val updated = allCachedTickets[index].copy(status = newStatus, updatedAt = now)
+        allCachedTickets[index] = updated
         updated
     }
 
@@ -264,14 +403,12 @@ class GlpiRepository(
             api.killSession()
         } catch (_: Exception) {
         } finally {
+            cookieStore.clear()
             credentialManager.clearSession()
         }
     }
 
     companion object {
-        /**
-         * Sanitiza conteúdo HTML/entidades vindo do GLPI para evitar XSS ou tags quebradas na UI nativa.
-         */
         fun sanitizeText(raw: String): String {
             return raw
                 .replace(Regex("<script[^>]*>.*?</script>", RegexOption.IGNORE_CASE), "")

@@ -14,6 +14,6 @@ class GlpiApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         credentialManager = SecureCredentialManager(this)
-        repository = GlpiRepository(credentialManager)
+        repository = GlpiRepository(this, credentialManager)
     }
 }

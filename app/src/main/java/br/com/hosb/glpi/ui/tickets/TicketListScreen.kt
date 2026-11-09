@@ -1,5 +1,7 @@
 package br.com.hosb.glpi.ui.tickets
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -24,38 +26,58 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.Badge
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import br.com.hosb.glpi.R
+import br.com.hosb.glpi.domain.model.GlpiUserProfile
 import br.com.hosb.glpi.domain.model.Ticket
 import br.com.hosb.glpi.domain.model.TicketPriority
+import br.com.hosb.glpi.domain.model.TicketSortOption
 import br.com.hosb.glpi.domain.model.TicketStatus
 import br.com.hosb.glpi.ui.GlpiUiState
 import br.com.hosb.glpi.ui.theme.StatusAssignedColor
@@ -72,61 +94,182 @@ fun TicketDashboardScreen(
     isExpandedScreen: Boolean,
     onSearchQueryChange: (String) -> Unit,
     onStatusFilterChange: (TicketStatus?) -> Unit,
+    onGroupFilterChange: (String) -> Unit,
+    onCategoryFilterChange: (String) -> Unit,
+    onSortOptionChange: (TicketSortOption) -> Unit,
+    onPageSizeChange: (Int) -> Unit,
+    onPageChange: (Int) -> Unit,
+    onToggleFilterPanel: () -> Unit,
+    onClearAllFilters: () -> Unit,
+    onSwitchProfile: (GlpiUserProfile) -> Unit,
     onSelectTicket: (Ticket?) -> Unit,
     onOpenNewTicket: () -> Unit,
     onAddFollowup: (Int, String, Boolean, String) -> Unit,
     onChangeStatus: (Int, TicketStatus) -> Unit,
     onLogout: () -> Unit
 ) {
+    var profileMenuExpanded by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "GLPI HOSB • Chamados",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            color = Color.White,
+                            shape = RoundedCornerShape(8.dp),
+                            shadowElevation = 2.dp
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.logo_hosb_curva),
+                                contentDescription = "Logo HOSB",
+                                modifier = Modifier
+                                    .height(34.dp)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentScale = ContentScale.Fit
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Surface(
-                                color = Color(0xFFDCFCE7),
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Lock,
-                                        contentDescription = null,
-                                        tint = Color(0xFF15803D),
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = "TLS",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF15803D),
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
                         }
-                        Text(
-                            text = "Entidade: Matriz (Fonseca) • Usuário: ${uiState.credentials.username.ifBlank { "alex.ribeiro" }}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "GLPI HOSB",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                            Text(
+                                text = "${uiState.totalFilteredCount} chamados • HOSB",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 actions = {
-                    IconButton(onClick = onLogout) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = "Encerrar Sessão com Segurança"
-                        )
+                    // Menu Superior Direito de Perfis e Entidade (idêntico ao header de glpi.hosb.com.br)
+                    Box {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .clickable { profileMenuExpanded = true }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ManageAccounts,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = uiState.activeProfile.label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "HOSB • ${uiState.credentials.username.ifBlank { "alex.ribeiro" }}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Alternar Perfil"
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = profileMenuExpanded,
+                            onDismissRequest = { profileMenuExpanded = false }
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Text(
+                                    text = "Alex Barbosa Ribeiro",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Entidade ativa: HOSB (Matriz Fonseca)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            HorizontalDivider()
+                            Text(
+                                text = "ALTERAR PERFIL (/Session/ChangeProfile)",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                            )
+
+                            GlpiUserProfile.entries.forEach { profile ->
+                                val isCurrent = uiState.activeProfile == profile
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(
+                                                text = profile.label,
+                                                fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Medium
+                                            )
+                                            Text(
+                                                text = "${profile.description} • ${if (profile.showsAllEntitiesTickets) "331 chamados" else "127 chamados"}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    leadingIcon = {
+                                        if (isCurrent) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.VerifiedUser,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        profileMenuExpanded = false
+                                        onSwitchProfile(profile)
+                                    }
+                                )
+                            }
+
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Sair da Sessão (Logout)",
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Logout,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                onClick = {
+                                    profileMenuExpanded = false
+                                    onLogout()
+                                }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -143,7 +286,6 @@ fun TicketDashboardScreen(
         }
     ) { innerPadding ->
         if (isExpandedScreen) {
-            // Layout Responsivo Master-Detail para Tablets / Telas Largas
             Row(
                 modifier = Modifier
                     .fillMaxSize()
@@ -151,23 +293,30 @@ fun TicketDashboardScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .weight(0.45f)
+                        .weight(0.46f)
                         .fillMaxHeight()
                 ) {
                     TicketListPane(
                         uiState = uiState,
                         onSearchQueryChange = onSearchQueryChange,
                         onStatusFilterChange = onStatusFilterChange,
+                        onGroupFilterChange = onGroupFilterChange,
+                        onCategoryFilterChange = onCategoryFilterChange,
+                        onSortOptionChange = onSortOptionChange,
+                        onPageSizeChange = onPageSizeChange,
+                        onPageChange = onPageChange,
+                        onToggleFilterPanel = onToggleFilterPanel,
+                        onClearAllFilters = onClearAllFilters,
                         onSelectTicket = onSelectTicket
                     )
                 }
                 Box(
                     modifier = Modifier
-                        .weight(0.55f)
+                        .weight(0.54f)
                         .fillMaxHeight()
                         .padding(end = 12.dp)
                 ) {
-                    val activeTicket = uiState.selectedTicket ?: uiState.filteredTickets.firstOrNull()
+                    val activeTicket = uiState.selectedTicket ?: uiState.pagedTickets.firstOrNull()
                     if (activeTicket != null) {
                         TicketDetailScreen(
                             ticket = activeTicket,
@@ -181,7 +330,6 @@ fun TicketDashboardScreen(
                 }
             }
         } else {
-            // Layout Compacto para Smartphones
             val selectedTicket = uiState.selectedTicket
             if (selectedTicket != null) {
                 Box(
@@ -208,6 +356,13 @@ fun TicketDashboardScreen(
                         uiState = uiState,
                         onSearchQueryChange = onSearchQueryChange,
                         onStatusFilterChange = onStatusFilterChange,
+                        onGroupFilterChange = onGroupFilterChange,
+                        onCategoryFilterChange = onCategoryFilterChange,
+                        onSortOptionChange = onSortOptionChange,
+                        onPageSizeChange = onPageSizeChange,
+                        onPageChange = onPageChange,
+                        onToggleFilterPanel = onToggleFilterPanel,
+                        onClearAllFilters = onClearAllFilters,
                         onSelectTicket = onSelectTicket
                     )
                 }
@@ -221,53 +376,180 @@ private fun TicketListPane(
     uiState: GlpiUiState,
     onSearchQueryChange: (String) -> Unit,
     onStatusFilterChange: (TicketStatus?) -> Unit,
+    onGroupFilterChange: (String) -> Unit,
+    onCategoryFilterChange: (String) -> Unit,
+    onSortOptionChange: (TicketSortOption) -> Unit,
+    onPageSizeChange: (Int) -> Unit,
+    onPageChange: (Int) -> Unit,
+    onToggleFilterPanel: () -> Unit,
+    onClearAllFilters: () -> Unit,
     onSelectTicket: (Ticket?) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // Resumo de Indicadores (espelhando front/central.php do GLPI)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            val assignedCount = uiState.tickets.count { it.status == TicketStatus.ASSIGNED }
-            val pendingCount = uiState.tickets.count { it.status == TicketStatus.PENDING }
-            val newCount = uiState.tickets.count { it.status == TicketStatus.NEW }
-
-            KpiBadgeCard("Total", uiState.tickets.size.toString(), MaterialTheme.colorScheme.primary)
-            KpiBadgeCard("Em Atendimento", assignedCount.toString(), StatusAssignedColor)
-            KpiBadgeCard("Pendentes", pendingCount.toString(), StatusPendingColor)
-            KpiBadgeCard("Novos", newCount.toString(), StatusNewColor)
-        }
-
-        // Busca Global (ID, Título, Categoria, Grupo Técnico, Requerente)
-        OutlinedTextField(
-            value = uiState.searchQuery,
-            onValueChange = onSearchQueryChange,
-            placeholder = { Text("Buscar por ID (#18333), título, setor, requerente...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            trailingIcon = {
-                if (uiState.searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchQueryChange("") }) {
-                        Icon(Icons.Default.Clear, contentDescription = "Limpar")
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-        )
-
-        // Filtros Rápidos por Status ITIL
+        // Resumo de Indicadores (KPIs sincronizados com o perfil ativo)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            val assignedCount = uiState.tickets.count { it.status == TicketStatus.ASSIGNED }
+            val pendingCount = uiState.tickets.count { it.status == TicketStatus.PENDING }
+            val plannedCount = uiState.tickets.count { it.status == TicketStatus.PLANNED }
+
+            KpiBadgeCard(
+                label = "Total (${uiState.activeProfile.label})",
+                count = uiState.tickets.size.toString(),
+                accent = MaterialTheme.colorScheme.primary
+            )
+            KpiBadgeCard("Atribuídos", assignedCount.toString(), StatusAssignedColor)
+            KpiBadgeCard("Pendentes", pendingCount.toString(), StatusPendingColor)
+            KpiBadgeCard("Planejados", plannedCount.toString(), StatusPlannedColor)
+        }
+
+        // Barra de Pesquisa + Botão de Filtros Avançados GLPI
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = uiState.searchQuery,
+                onValueChange = onSearchQueryChange,
+                placeholder = { Text("Pesquisar ID (#18333), título, requerente...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (uiState.searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { onSearchQueryChange("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Limpar")
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.weight(1f)
+            )
+
+            OutlinedButton(
+                onClick = onToggleFilterPanel,
+                shape = RoundedCornerShape(14.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)
+            ) {
+                Icon(Icons.Default.FilterList, contentDescription = "Filtros")
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Filtros")
+                if (uiState.activeFilterCount > 0) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Badge { Text(uiState.activeFilterCount.toString()) }
+                }
+            }
+        }
+
+        // Painel Expansível de Filtros Avançados (Grupo Técnico, Categoria, Ordenação, Linhas/Página)
+        AnimatedVisibility(visible = uiState.isFilterPanelExpanded) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Critérios de Filtro e Ordenação (GLPI)",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TextButton(onClick = onClearAllFilters) {
+                            Text("Limpar filtros")
+                        }
+                    }
+
+                    Text("Grupo Técnico Atribuído:", style = MaterialTheme.typography.labelMedium)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        uiState.availableGroups.forEach { group ->
+                            FilterChip(
+                                selected = uiState.selectedGroupFilter == group,
+                                onClick = { onGroupFilterChange(group) },
+                                label = { Text(group) }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text("Categoria do Chamado:", style = MaterialTheme.typography.labelMedium)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        uiState.availableCategories.forEach { category ->
+                            FilterChip(
+                                selected = uiState.selectedCategoryFilter == category,
+                                onClick = { onCategoryFilterChange(category) },
+                                label = { Text(category) }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text("Ordenação:", style = MaterialTheme.typography.labelMedium)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        TicketSortOption.entries.forEach { sort ->
+                            FilterChip(
+                                selected = uiState.sortOption == sort,
+                                onClick = { onSortOptionChange(sort) },
+                                label = { Text(sort.label) }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text("Linhas por página (glpilist_limit):", style = MaterialTheme.typography.labelMedium)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(25, 50, 100, 350).forEach { limit ->
+                            FilterChip(
+                                selected = uiState.pageSize == limit,
+                                onClick = { onPageSizeChange(limit) },
+                                label = { Text(if (limit >= 350) "Todos (${uiState.tickets.size})" else "$limit / pág") }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Chips Rápidos de Status ITIL
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             FilterChip(
@@ -276,6 +558,7 @@ private fun TicketListPane(
                 label = { Text("Todos (${uiState.tickets.size})") }
             )
             TicketStatus.entries.forEach { status ->
+                val count = uiState.tickets.count { it.status == status }
                 FilterChip(
                     selected = uiState.selectedStatusFilter == status,
                     onClick = {
@@ -283,18 +566,62 @@ private fun TicketListPane(
                             if (uiState.selectedStatusFilter == status) null else status
                         )
                     },
-                    label = { Text(status.label) }
+                    label = { Text("${status.label} ($count)") }
                 )
             }
         }
 
-        // Lista de Chamados com todas as colunas de front/ticket.php organizadas em Cards responsivos
+        // Barra de Paginação estilo GLPI ("Exibindo 1 a 50 de 127 linhas")
+        val startItem = if (uiState.totalFilteredCount == 0) 0 else ((uiState.currentPage - 1) * uiState.pageSize) + 1
+        val endItem = (startItem + uiState.pagedTickets.size - 1).coerceAtLeast(0)
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Exibindo $startItem a $endItem de ${uiState.totalFilteredCount} linhas",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                TextButton(
+                    onClick = { onPageChange(uiState.currentPage - 1) },
+                    enabled = uiState.currentPage > 1,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text("◀ Anterior")
+                }
+                Text(
+                    text = "${uiState.currentPage}/${uiState.totalPages}",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                TextButton(
+                    onClick = { onPageChange(uiState.currentPage + 1) },
+                    enabled = uiState.currentPage < uiState.totalPages,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text("Próxima ▶")
+                }
+            }
+        }
+
+        // Lista de Chamados Paginada e Filtrada
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(uiState.filteredTickets, key = { it.id }) { ticket ->
+            items(uiState.pagedTickets, key = { it.id }) { ticket ->
                 TicketCardItem(
                     ticket = ticket,
                     isSelected = uiState.selectedTicket?.id == ticket.id,
@@ -316,7 +643,7 @@ private fun KpiBadgeCard(label: String, count: String, accent: Color) {
         tonalElevation = 2.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -364,8 +691,7 @@ fun TicketCardItem(
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Linha 1: ID + Status Badge + Prioridade
+        Column(modifier = Modifier.padding(15.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -412,9 +738,8 @@ fun TicketCardItem(
                 PriorityPill(priority = ticket.priority)
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Linha 2: Título do Chamado
             Text(
                 text = ticket.title,
                 style = MaterialTheme.typography.titleMedium,
@@ -423,9 +748,8 @@ fun TicketCardItem(
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // Linha 3: Categoria e Localização (Matriz (Fonseca) > ...)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -463,13 +787,14 @@ fun TicketCardItem(
                 Text(
                     text = ticket.location,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Linha 4: Requerente, Grupo Técnico Atribuído e Última Atualização
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

@@ -3,6 +3,7 @@ package br.com.hosb.glpi.ui.login
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -57,9 +58,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -67,10 +71,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import br.com.hosb.glpi.R
 import br.com.hosb.glpi.domain.model.AuthCredentials
 import br.com.hosb.glpi.domain.model.LoginOrigin
 import br.com.hosb.glpi.ui.theme.GlpiNavy
-import br.com.hosb.glpi.ui.theme.GlpiPrimaryBlue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,7 +94,7 @@ fun LoginScreen(
     val context = LocalContext.current
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var appTokenVisible by rememberSaveable { mutableStateOf(false) }
-    var apiSectionExpanded by rememberSaveable { mutableStateOf(true) }
+    var apiSectionExpanded by rememberSaveable { mutableStateOf(false) }
     var originDropdownExpanded by remember { mutableStateOf(false) }
 
     Box(
@@ -112,46 +116,42 @@ fun LoginScreen(
                 .fillMaxWidth()
                 .widthIn(max = 480.dp)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 28.dp),
+                .padding(horizontal = 20.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Cabeçalho GLPI HOSB inspirado na tela original welcome-anonymous
+            // Logo Oficial HOSB (logo_HOSB_curva.JPG)
             Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(22.dp),
+                color = Color.White,
+                shadowElevation = 8.dp,
                 modifier = Modifier.padding(bottom = 12.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "GLPI",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White
+                    Image(
+                        painter = painterResource(id = R.drawable.logo_hosb_curva),
+                        contentDescription = "Logo HOSB - Desde 1966",
+                        modifier = Modifier
+                            .height(82.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Fit
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Surface(
-                        color = GlpiPrimaryBlue,
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Text(
-                            text = "HOSB",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
                 }
             }
 
             Text(
-                text = "glpi.hosb.com.br • Central de Serviços e Chamados",
+                text = "GLPI HOSB • glpi.hosb.com.br",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                text = "Central de Serviços e Gestão de Chamados",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.85f),
-                modifier = Modifier.padding(bottom = 20.dp)
+                color = Color.White.copy(alpha = 0.82f),
+                modifier = Modifier.padding(bottom = 18.dp)
             )
 
             // Card Principal de Login (main-content-card do GLPI)
@@ -195,7 +195,7 @@ fun LoginScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     if (!errorMessage.isNullOrBlank()) {
                         Surface(
@@ -229,7 +229,7 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Campo 2: Senha (id="login_password" no GLPI) + Link "Esqueceu sua senha?"
                     Row(
@@ -278,12 +278,12 @@ fun LoginScreen(
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Password,
-                            imeAction = ImeAction.Next
+                            imeAction = ImeAction.Done
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Campo 3: Origem de login (select name="auth" no GLPI)
                     ExposedDropdownMenuBox(
@@ -318,9 +318,9 @@ fun LoginScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     HorizontalDivider()
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // Seção de Credenciais da API REST (App-Token, User-Token e URL glpi.hosb.com.br)
                     Row(
@@ -340,7 +340,7 @@ fun LoginScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = "Credenciais de API REST (GLPI)",
+                                    text = "Credenciais de API REST (Opcional)",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -456,10 +456,10 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = "GLPI Copyright © Teclib' & HOSB TIC • Conexão verificada HTTPS",
+                text = "HOSB - Desde 1966 • GLPI 11.0.2 • Conexão verificada HTTPS",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
