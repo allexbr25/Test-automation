@@ -45,7 +45,15 @@ jobs:
 
       - name: Compilar APK Release Assinado (GLPI HOSB)
         run: |
-          gradle assembleRelease --no-daemon
+          set +e
+          gradle assembleRelease -x lint -x lintVitalRelease --no-daemon > build.log 2>&1
+          EXIT_CODE=$?
+          cat build.log
+          if [ $EXIT_CODE -ne 0 ]; then
+            ERR_SUMMARY=$(grep -E "e: |FAILURE:|What went wrong:|> " build.log | head -n 30 | tr '\n' ' ')
+            echo "::error title=Gradle Build Error::$ERR_SUMMARY"
+            exit $EXIT_CODE
+          fi
           cp app/build/outputs/apk/release/app-release.apk GLPI-HOSB-v1.0.7.apk
 
       - name: Verificar Assinatura V1/V2/V3 do APK

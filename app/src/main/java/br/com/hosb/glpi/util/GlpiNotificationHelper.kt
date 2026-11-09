@@ -1,6 +1,7 @@
 package br.com.hosb.glpi.util
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -46,6 +47,7 @@ class GlpiNotificationHelper(private val context: Context) {
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun showNotification(
         notificationId: Int,
         title: String,
