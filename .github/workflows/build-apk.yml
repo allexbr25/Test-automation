@@ -46,11 +46,11 @@ jobs:
       - name: Compilar APK Release Assinado (GLPI HOSB)
         run: |
           set +e
-          gradle assembleRelease -x lint -x lintVitalRelease --no-daemon > build.log 2>&1
+          gradle assembleRelease --no-daemon > build.log 2>&1
           EXIT_CODE=$?
           cat build.log
           if [ $EXIT_CODE -ne 0 ]; then
-            ERR_SUMMARY=$(grep -E "e: |FAILURE:|What went wrong:|> " build.log | head -n 30 | tr '\n' ' ')
+            ERR_SUMMARY=$(grep -A 6 -E "e: |What went wrong:" build.log | head -n 40 | tr '\n' ' ')
             echo "::error title=Gradle Build Error::$ERR_SUMMARY"
             exit $EXIT_CODE
           fi
