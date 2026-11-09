@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Api
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
@@ -48,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -89,7 +91,8 @@ fun LoginScreen(
     onUserTokenChange: (String) -> Unit,
     onLoginOriginChange: (LoginOrigin) -> Unit,
     onRememberMeChange: (Boolean) -> Unit,
-    onLoginSubmit: () -> Unit
+    onLoginSubmit: () -> Unit,
+    onBiometricLogin: () -> Unit
 ) {
     val context = LocalContext.current
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
@@ -429,7 +432,7 @@ fun LoginScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // Botão Entrar (name="submit" no GLPI)
                     Button(
@@ -453,6 +456,33 @@ fun LoginScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Botão de Login por Biometria (Sensor Ultrassônico Digital / Reconhecimento Facial Samsung)
+                    OutlinedButton(
+                        onClick = onBiometricLogin,
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Fingerprint,
+                            contentDescription = "Biometria",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Entrar com Biometria",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                 }
             }

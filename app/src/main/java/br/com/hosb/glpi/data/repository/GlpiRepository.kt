@@ -13,6 +13,8 @@ import br.com.hosb.glpi.domain.model.CreateTicketInput
 import br.com.hosb.glpi.domain.model.CreateTicketPayload
 import br.com.hosb.glpi.domain.model.GlpiUserProfile
 import br.com.hosb.glpi.domain.model.Ticket
+import br.com.hosb.glpi.domain.model.TicketApproval
+import br.com.hosb.glpi.domain.model.TicketDocument
 import br.com.hosb.glpi.domain.model.TicketPriority
 import br.com.hosb.glpi.domain.model.TicketStatus
 import br.com.hosb.glpi.domain.model.TicketType
@@ -555,18 +557,33 @@ class GlpiRepository(
         current
     }
 
-    suspend fun addFollowupToTicket(
-        ticketId: Int,
-        authorName: String,
-        content: String,
-        isPrivate: Boolean,
-        entryType: String = "Acompanhamento"
-    ): Ticket? = withContext(Dispatchers.IO) {
-        val cleanContent = sanitizeText(content)
-        val now = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.forLanguageTag("pt-BR")).format(Date())
-
-        // 1. Envia resposta diretamente para o servidor web GLPI (glpi.hosb.com.br)
+    suspend fun pollLatestTicketsFromWeb(profile: GlpiUserProfile): List<Ticket> = withContext(Dispatchers.IO) {
         try {
+            val fresh = fetchLiveTicketsFromWeb(resetSearch = false)
+            if (fresh.isNotEmpty()) {
+                val existingMap = liveTickets.associateBy { it.id }
+                liveTickets = fresh.map { fetched ->
+                    val prev = existingMap[fetched.id]
+                    if (prev != null) {
+                        val localTimeline = prev.timeline.filter { it.id >= 900000 }
+                        fetched.copy(
+                            timeline = if (localTimeline.isNotEmpty()) fetched.timeline + localTimeline else prev.timeline,
+                            approvals = prev.approvals,
+                            documents = prev.documents
+                        )
+                    } else {
+                        fetched
+                    }
+                }.toMutableList()
+                return@withContext liveTickets.toList()
+            }
+        } catch (_: Exception) {
+        }
+        getTicketsForProfile(profile)
+    }
+
+    private fun fetchTicketCsrfToken(ticketId: Int): String? {
+        return try {
             val tabUrl = "https://glpi.hosb.com.br/ajax/common.tabs.php?_glpi_tab=Ticket%24main&_target=%2Ffront%2Fticket.form.php&_itemtype=Ticket&id=$ticketId"
             val tabReq = Request.Builder()
                 .url(tabUrl)
@@ -576,9 +593,27 @@ class GlpiRepository(
                 .get()
                 .build()
             val tabHtml = webHttpClient.newCall(tabReq).execute().use { it.body?.string() ?: "" }
-            val csrf = Regex("""name="_glpi_csrf_token"\s+value="([^"]+)"""").find(tabHtml)?.groupValues?.get(1)
+            Regex("""name="_glpi_csrf_token"\s+value="([^"]+)"""").find(tabHtml)?.groupValues?.get(1)
                 ?: lastCsrfToken
+        } catch (_: Exception) {
+            lastCsrfToken
+        }
+    }
 
+    suspend fun addFollowupToTicket(
+        ticketId: Int,
+        authorName: String,
+        content: String,
+        isPrivate: Boolean,
+        entryType: String = "Acompanhamento",
+        requestOrigin: String = "Helpdesk",
+        setPending: Boolean = false
+    ): Ticket? = withContext(Dispatchers.IO) {
+        val cleanContent = sanitizeText(content)
+        val now = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.forLanguageTag("pt-BR")).format(Date())
+
+        try {
+            val csrf = fetchTicketCsrfToken(ticketId)
             if (!csrf.isNullOrBlank()) {
                 when (entryType) {
                     "Solução" -> {
@@ -607,6 +642,7 @@ class GlpiRepository(
                             .add("is_private", if (isPrivate) "1" else "0")
                             .add("state", "2")
                             .add("actiontime", "900")
+                            .add("pending", if (setPending) "1" else "0")
                             .add("add", "")
                             .add("_glpi_csrf_token", csrf)
                             .build()
@@ -625,7 +661,7 @@ class GlpiRepository(
                             .add("content", cleanContent)
                             .add("is_private", if (isPrivate) "1" else "0")
                             .add("requesttypes_id", "1")
-                            .add("pending", "0")
+                            .add("pending", if (setPending) "1" else "0")
                             .add("add", "")
                             .add("_glpi_csrf_token", csrf)
                             .build()
@@ -642,7 +678,6 @@ class GlpiRepository(
         } catch (_: Exception) {
         }
 
-        // 2. Também envia via API REST caso configurada com App-Token
         if (currentAppToken.isNotEmpty()) {
             try {
                 val api = buildApiService(currentBaseUrl)
@@ -664,20 +699,341 @@ class GlpiRepository(
             ?: fallbackTickets.find { it.id == ticketId }
             ?: return@withContext null
 
+        val formattedContent = if (entryType == "Acompanhamento" && requestOrigin.isNotBlank()) {
+            "[$requestOrigin] $cleanContent"
+        } else {
+            cleanContent
+        }
+
         val newEntry = TimelineEntry(
             id = (existing.timeline.maxOfOrNull { it.id } ?: 900000).coerceAtLeast(900000) + 1,
             type = entryType,
             author = authorName,
             role = "Técnico / Usuário Autenticado",
             date = now,
-            content = cleanContent,
+            content = formattedContent,
             isPrivate = isPrivate
         )
-        val updatedStatus = if (entryType == "Solução") TicketStatus.SOLVED else existing.status
+        val updatedStatus = when {
+            entryType == "Solução" -> TicketStatus.SOLVED
+            setPending -> TicketStatus.PENDING
+            else -> existing.status
+        }
         val updated = existing.copy(
             status = updatedStatus,
             updatedAt = now,
             timeline = existing.timeline + newEntry
+        )
+        updateTicketInLists(updated)
+        updated
+    }
+
+    suspend fun addTaskToTicket(
+        ticketId: Int,
+        authorName: String,
+        content: String,
+        category: String,
+        stateLabel: String,
+        durationMinutes: Int,
+        plannedDate: String?,
+        isPrivate: Boolean,
+        setPending: Boolean
+    ): Ticket? = withContext(Dispatchers.IO) {
+        val cleanContent = sanitizeText(content)
+        val now = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.forLanguageTag("pt-BR")).format(Date())
+        val stateCode = when (stateLabel) {
+            "Para fazer" -> "1"
+            "Feito" -> "2"
+            else -> "0"
+        }
+
+        try {
+            val csrf = fetchTicketCsrfToken(ticketId)
+            if (!csrf.isNullOrBlank()) {
+                val form = FormBody.Builder()
+                    .add("itemtype", "Ticket")
+                    .add("tickets_id", ticketId.toString())
+                    .add("content", cleanContent)
+                    .add("is_private", if (isPrivate) "1" else "0")
+                    .add("state", stateCode)
+                    .add("actiontime", (durationMinutes * 60).toString())
+                    .add("pending", if (setPending) "1" else "0")
+                    .add("add", "")
+                    .add("_glpi_csrf_token", csrf)
+                    .build()
+                val postReq = Request.Builder()
+                    .url("https://glpi.hosb.com.br/front/tickettask.form.php")
+                    .header("Referer", "https://glpi.hosb.com.br/front/ticket.form.php?id=$ticketId")
+                    .header("User-Agent", "GLPI-HOSB-Android/1.0")
+                    .post(form)
+                    .build()
+                webHttpClient.newCall(postReq).execute().close()
+            }
+        } catch (_: Exception) {
+        }
+
+        val existing = liveTickets.find { it.id == ticketId }
+            ?: fallbackTickets.find { it.id == ticketId }
+            ?: return@withContext null
+
+        val planSuffix = if (!plannedDate.isNullOrBlank()) " • Planejada para: $plannedDate" else ""
+        val taskSummary = "[$category • Status: $stateLabel • Duração: ${durationMinutes} min$planSuffix]\n$cleanContent"
+
+        val newEntry = TimelineEntry(
+            id = (existing.timeline.maxOfOrNull { it.id } ?: 900000).coerceAtLeast(900000) + 1,
+            type = "Tarefa",
+            author = authorName,
+            role = "Técnico TIC",
+            date = now,
+            content = taskSummary,
+            isPrivate = isPrivate,
+            durationMinutes = durationMinutes
+        )
+        val nextStatus = when {
+            setPending -> TicketStatus.PENDING
+            !plannedDate.isNullOrBlank() -> TicketStatus.PLANNED
+            else -> existing.status
+        }
+        val updated = existing.copy(
+            status = nextStatus,
+            updatedAt = now,
+            timeline = existing.timeline + newEntry
+        )
+        updateTicketInLists(updated)
+        updated
+    }
+
+    suspend fun addSolutionToTicket(
+        ticketId: Int,
+        authorName: String,
+        content: String,
+        solutionType: String,
+        solutionTemplate: String,
+        linkToKb: Boolean
+    ): Ticket? = withContext(Dispatchers.IO) {
+        val cleanContent = sanitizeText(content)
+        val now = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.forLanguageTag("pt-BR")).format(Date())
+
+        try {
+            val csrf = fetchTicketCsrfToken(ticketId)
+            if (!csrf.isNullOrBlank()) {
+                val form = FormBody.Builder()
+                    .add("itemtype", "Ticket")
+                    .add("items_id", ticketId.toString())
+                    .add("_no_message_link", "1")
+                    .add("content", cleanContent)
+                    .add("solutiontypes_id", "0")
+                    .add("_sol_to_kb", if (linkToKb) "1" else "0")
+                    .add("add", "")
+                    .add("_glpi_csrf_token", csrf)
+                    .build()
+                val postReq = Request.Builder()
+                    .url("https://glpi.hosb.com.br/front/itilsolution.form.php")
+                    .header("Referer", "https://glpi.hosb.com.br/front/ticket.form.php?id=$ticketId")
+                    .header("User-Agent", "GLPI-HOSB-Android/1.0")
+                    .post(form)
+                    .build()
+                webHttpClient.newCall(postReq).execute().close()
+            }
+        } catch (_: Exception) {
+        }
+
+        val existing = liveTickets.find { it.id == ticketId }
+            ?: fallbackTickets.find { it.id == ticketId }
+            ?: return@withContext null
+
+        val kbSuffix = if (linkToKb) " • Base de Conhecimento (KB)" else ""
+        val solSummary = "[$solutionType • Modelo: $solutionTemplate$kbSuffix]\n$cleanContent"
+
+        val newEntry = TimelineEntry(
+            id = (existing.timeline.maxOfOrNull { it.id } ?: 900000).coerceAtLeast(900000) + 1,
+            type = "Solução",
+            author = authorName,
+            role = "Técnico Responsável",
+            date = now,
+            content = solSummary
+        )
+        val updated = existing.copy(
+            status = TicketStatus.SOLVED,
+            updatedAt = now,
+            timeline = existing.timeline + newEntry
+        )
+        updateTicketInLists(updated)
+        updated
+    }
+
+    suspend fun addDocumentToTicket(
+        ticketId: Int,
+        authorName: String,
+        title: String,
+        fileName: String,
+        category: String,
+        comment: String
+    ): Ticket? = withContext(Dispatchers.IO) {
+        val cleanTitle = sanitizeText(title.ifBlank { fileName.ifBlank { "Documento GLPI #$ticketId" } })
+        val cleanFile = sanitizeText(fileName.ifBlank { "anexo_chamado_${ticketId}.pdf" })
+        val cleanComment = sanitizeText(comment)
+        val now = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.forLanguageTag("pt-BR")).format(Date())
+
+        try {
+            val csrf = fetchTicketCsrfToken(ticketId)
+            if (!csrf.isNullOrBlank()) {
+                val form = FormBody.Builder()
+                    .add("entities_id", "0")
+                    .add("is_recursive", "0")
+                    .add("itemtype", "Ticket")
+                    .add("items_id", ticketId.toString())
+                    .add("documentcategories_id", "0")
+                    .add("name", cleanTitle)
+                    .add("add", "")
+                    .add("_glpi_csrf_token", csrf)
+                    .build()
+                val postReq = Request.Builder()
+                    .url("https://glpi.hosb.com.br/front/document.form.php")
+                    .header("Referer", "https://glpi.hosb.com.br/front/ticket.form.php?id=$ticketId")
+                    .header("User-Agent", "GLPI-HOSB-Android/1.0")
+                    .post(form)
+                    .build()
+                webHttpClient.newCall(postReq).execute().close()
+            }
+        } catch (_: Exception) {
+        }
+
+        val existing = liveTickets.find { it.id == ticketId }
+            ?: fallbackTickets.find { it.id == ticketId }
+            ?: return@withContext null
+
+        val newDoc = TicketDocument(
+            id = (existing.documents.maxOfOrNull { it.id } ?: 5000) + 1,
+            title = cleanTitle,
+            fileName = cleanFile,
+            category = category,
+            uploadedBy = authorName,
+            uploadedAt = now
+        )
+        val docEntry = TimelineEntry(
+            id = (existing.timeline.maxOfOrNull { it.id } ?: 900000).coerceAtLeast(900000) + 1,
+            type = "Documento",
+            author = authorName,
+            role = "Anexo GLPI",
+            date = now,
+            content = "📎 Documento anexado: $cleanTitle ($cleanFile) • Rubrica: $category" +
+                if (cleanComment.isNotBlank()) "\nObservação: $cleanComment" else ""
+        )
+        val updated = existing.copy(
+            updatedAt = now,
+            documents = existing.documents + newDoc,
+            timeline = existing.timeline + docEntry
+        )
+        updateTicketInLists(updated)
+        updated
+    }
+
+    suspend fun requestApprovalForTicket(
+        ticketId: Int,
+        requesterName: String,
+        stepName: String,
+        validatorType: String,
+        approverName: String,
+        comment: String
+    ): Ticket? = withContext(Dispatchers.IO) {
+        val cleanComment = sanitizeText(comment.ifBlank { "Solicitação de aprovação para o chamado #$ticketId." })
+        val now = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.forLanguageTag("pt-BR")).format(Date())
+
+        try {
+            val csrf = fetchTicketCsrfToken(ticketId)
+            if (!csrf.isNullOrBlank()) {
+                val form = FormBody.Builder()
+                    .add("itemtype", "Ticket")
+                    .add("tickets_id", ticketId.toString())
+                    .add("_validationsteps_id", "1")
+                    .add("comment_submission", cleanComment)
+                    .add("add", "")
+                    .add("_glpi_csrf_token", csrf)
+                    .build()
+                val postReq = Request.Builder()
+                    .url("https://glpi.hosb.com.br/front/ticketvalidation.form.php")
+                    .header("Referer", "https://glpi.hosb.com.br/front/ticket.form.php?id=$ticketId")
+                    .header("User-Agent", "GLPI-HOSB-Android/1.0")
+                    .post(form)
+                    .build()
+                webHttpClient.newCall(postReq).execute().close()
+            }
+        } catch (_: Exception) {
+        }
+
+        val existing = liveTickets.find { it.id == ticketId }
+            ?: fallbackTickets.find { it.id == ticketId }
+            ?: return@withContext null
+
+        val newApproval = TicketApproval(
+            id = (existing.approvals.maxOfOrNull { it.id } ?: 3000) + 1,
+            stepName = stepName,
+            requesterName = requesterName,
+            approverName = "$approverName ($validatorType)",
+            status = "Aguardando aprovação",
+            submissionComment = cleanComment,
+            approvalComment = null,
+            updatedAt = now
+        )
+        val approvalEntry = TimelineEntry(
+            id = (existing.timeline.maxOfOrNull { it.id } ?: 900000).coerceAtLeast(900000) + 1,
+            type = "Aprovação",
+            author = requesterName,
+            role = "Solicitante de Validação",
+            date = now,
+            content = "👍 Pedido de aprovação ($stepName) enviado para $approverName ($validatorType).\nComentário: $cleanComment"
+        )
+        val updated = existing.copy(
+            updatedAt = now,
+            approvals = existing.approvals + newApproval,
+            timeline = existing.timeline + approvalEntry
+        )
+        updateTicketInLists(updated)
+        updated
+    }
+
+    suspend fun decideTicketApproval(
+        ticketId: Int,
+        approvalId: Int,
+        actorName: String,
+        approved: Boolean,
+        decisionComment: String
+    ): Ticket? = withContext(Dispatchers.IO) {
+        val existing = liveTickets.find { it.id == ticketId }
+            ?: fallbackTickets.find { it.id == ticketId }
+            ?: return@withContext null
+        val now = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.forLanguageTag("pt-BR")).format(Date())
+        val statusLabel = if (approved) "Concedida (Aprovado)" else "Recusada"
+        val cleanDecision = sanitizeText(
+            decisionComment.ifBlank {
+                if (approved) "Aprovação concedida via App GLPI HOSB." else "Aprovação recusada."
+            }
+        )
+
+        val updatedApprovals = existing.approvals.map { app ->
+            if (app.id == approvalId) {
+                app.copy(
+                    status = statusLabel,
+                    approvalComment = cleanDecision,
+                    updatedAt = now
+                )
+            } else {
+                app
+            }
+        }
+        val decisionEntry = TimelineEntry(
+            id = (existing.timeline.maxOfOrNull { it.id } ?: 900000).coerceAtLeast(900000) + 1,
+            type = "Aprovação",
+            author = actorName,
+            role = "Aprovador",
+            date = now,
+            content = "${if (approved) "✅ Aprovação Concedida" else "❌ Aprovação Recusada"}: $cleanDecision"
+        )
+        val updated = existing.copy(
+            updatedAt = now,
+            approvals = updatedApprovals,
+            timeline = existing.timeline + decisionEntry
         )
         updateTicketInLists(updated)
         updated

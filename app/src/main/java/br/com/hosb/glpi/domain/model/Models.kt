@@ -116,6 +116,26 @@ data class TicketApproval(
     val updatedAt: String
 )
 
+data class TicketDocument(
+    val id: Int,
+    val title: String,
+    val fileName: String,
+    val category: String,
+    val uploadedBy: String,
+    val uploadedAt: String,
+    val sizeLabel: String = "245 KB"
+)
+
+data class GlpiNotificationItem(
+    val id: Int,
+    val ticketId: Int,
+    val title: String,
+    val message: String,
+    val timestamp: String,
+    val isNewTicket: Boolean = false,
+    val isRead: Boolean = false
+)
+
 data class Ticket(
     val id: Int,
     val title: String,
@@ -135,7 +155,8 @@ data class Ticket(
     val updatedAt: String,
     val inTicProfile: Boolean = true,
     val timeline: List<TimelineEntry> = emptyList(),
-    val approvals: List<TicketApproval> = emptyList()
+    val approvals: List<TicketApproval> = emptyList(),
+    val documents: List<TicketDocument> = emptyList()
 )
 
 data class AssetTicketRecord(

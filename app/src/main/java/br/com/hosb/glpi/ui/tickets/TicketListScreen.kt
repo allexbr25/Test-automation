@@ -35,11 +35,13 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -103,11 +105,18 @@ fun TicketDashboardScreen(
     onSwitchProfile: (GlpiUserProfile) -> Unit,
     onSelectTicket: (Ticket?) -> Unit,
     onOpenNewTicket: () -> Unit,
-    onAddFollowup: (Int, String, Boolean, String) -> Unit,
+    onAddFollowup: (Int, String, Boolean, String, String, Boolean) -> Unit,
+    onAddTask: (Int, String, String, String, Int, String?, Boolean, Boolean) -> Unit,
+    onAddSolution: (Int, String, String, String, Boolean) -> Unit,
+    onAddDocument: (Int, String, String, String, String) -> Unit,
+    onRequestApproval: (Int, String, String, String, String) -> Unit,
+    onDecideApproval: (Int, Int, Boolean, String) -> Unit,
+    onMarkNotificationsRead: () -> Unit,
     onChangeStatus: (Int, TicketStatus) -> Unit,
     onLogout: () -> Unit
 ) {
     var profileMenuExpanded by remember { mutableStateOf(false) }
+    var notificationsMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -154,6 +163,98 @@ fun TicketDashboardScreen(
                     }
                 },
                 actions = {
+                    // Sino de Notificações de Novos Chamados e Movimentações
+                    Box {
+                        IconButton(
+                            onClick = {
+                                notificationsMenuExpanded = true
+                                onMarkNotificationsRead()
+                            }
+                        ) {
+                            BadgedBox(
+                                badge = {
+                                    if (uiState.unreadNotificationCount > 0) {
+                                        Badge {
+                                            Text(uiState.unreadNotificationCount.toString())
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Notifications,
+                                    contentDescription = "Notificações de Chamados",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = notificationsMenuExpanded,
+                            onDismissRequest = { notificationsMenuExpanded = false },
+                            modifier = Modifier.width(310.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                                Text(
+                                    text = "🔔 Notificações & Movimentações",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Alertas em tempo real de novos chamados e respostas",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            HorizontalDivider()
+                            if (uiState.notifications.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Nenhuma nova movimentação no momento.",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    },
+                                    onClick = { notificationsMenuExpanded = false }
+                                )
+                            } else {
+                                uiState.notifications.take(8).forEach { notif ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(
+                                                    text = notif.title,
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = notif.message,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = notif.timestamp,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            notificationsMenuExpanded = false
+                                            uiState.tickets.find { it.id == notif.ticketId }?.let { target ->
+                                                onSelectTicket(target)
+                                            }
+                                        }
+                                    )
+                                    HorizontalDivider()
+                                }
+                            }
+                        }
+                    }
+
                     // Menu Superior Direito de Perfis e Entidade (idêntico ao header de glpi.hosb.com.br)
                     Box {
                         Surface(
@@ -333,10 +434,14 @@ fun TicketDashboardScreen(
                     if (activeTicket != null) {
                         TicketDetailScreen(
                             ticket = activeTicket,
-                            sessionToken = uiState.activeSessionToken,
                             showBackButton = false,
                             onBack = {},
                             onAddFollowup = onAddFollowup,
+                            onAddTask = onAddTask,
+                            onAddSolution = onAddSolution,
+                            onAddDocument = onAddDocument,
+                            onRequestApproval = onRequestApproval,
+                            onDecideApproval = onDecideApproval,
                             onChangeStatus = onChangeStatus
                         )
                     }
@@ -352,10 +457,14 @@ fun TicketDashboardScreen(
                 ) {
                     TicketDetailScreen(
                         ticket = selectedTicket,
-                        sessionToken = uiState.activeSessionToken,
                         showBackButton = true,
                         onBack = { onSelectTicket(null) },
                         onAddFollowup = onAddFollowup,
+                        onAddTask = onAddTask,
+                        onAddSolution = onAddSolution,
+                        onAddDocument = onAddDocument,
+                        onRequestApproval = onRequestApproval,
+                        onDecideApproval = onDecideApproval,
                         onChangeStatus = onChangeStatus
                     )
                 }

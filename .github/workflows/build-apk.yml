@@ -46,32 +46,36 @@ jobs:
       - name: Compilar APK Release Assinado (GLPI HOSB)
         run: |
           gradle assembleRelease --no-daemon
-          cp app/build/outputs/apk/release/app-release.apk GLPI-HOSB-v1.0.6.apk
+          cp app/build/outputs/apk/release/app-release.apk GLPI-HOSB-v1.0.7.apk
 
       - name: Verificar Assinatura V1/V2/V3 do APK
         run: |
-          jarsigner -verify -verbose -certs GLPI-HOSB-v1.0.6.apk | tail -n 20
+          jarsigner -verify -verbose -certs GLPI-HOSB-v1.0.7.apk | tail -n 20
 
       - name: Publicar APK como Artefato no GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: GLPI-HOSB-Android-APK-v1.0.6
-          path: GLPI-HOSB-v1.0.6.apk
+          name: GLPI-HOSB-Android-APK-v1.0.7
+          path: GLPI-HOSB-v1.0.7.apk
 
       - name: Criar/Atualizar Release com o APK Assinado para Download Direto
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.6
-          name: "GLPI HOSB Android APK v1.0.6"
+          tag_name: v1.0.7
+          name: "GLPI HOSB Android APK v1.0.7"
           body: |
-            ### 📱 Aplicativo Android GLPI HOSB (`glpi.hosb.com.br`) — Versão 1.0.6 (Otimizada para Samsung Galaxy S23 Ultra • One UI 9)
-            - **Barra de Pesquisa Compacta em Pílula (One UI 9 — 40dp)**: substitui a caixa retangular alta por uma pílula enxuta (`RoundedCornerShape(20.dp)`) com botão compacto de `Filtros`, liberando amplo espaço vertical para a lista de chamados.
-            - **Tela de Login Limpa**: removidos textos técnicos (`TLS 1.3`, `Android Keystore AES-256-GCM`) mantendo toda a segurança e criptografia ativas de forma transparente em segundo plano.
-            - **Responsividade para Samsung Galaxy S23 Ultra (One UI 9)**: suporte nativo a `.systemBarsPadding()` (recorte da câmera frontal e barra de gestos) e `.imePadding()` (teclado nunca cobre o botão `Enviar Resposta`).
-            - **Keystore Permanente V1 + V2 + V3**: permite instalar ou atualizar sobre versões anteriores sem conflito de assinatura.
+            ### 📱 Aplicativo Android GLPI HOSB (`glpi.hosb.com.br`) — Versão 1.0.7 (Otimizada para Samsung Galaxy S23 Ultra • One UI 9)
+            - **Login por Biometria (`Entrar com Biometria`)**: integração nativa com o leitor ultrassônico de impressão digital e reconhecimento facial do Samsung Galaxy S23 Ultra via `BiometricPrompt`.
+            - **Notificações de Novos Chamados e Movimentações**: alertas nativos do Android (`IMPORTANCE_HIGH`) + sino de notificações (`🔔`) na barra superior com contador de não lidas e histórico em tempo real.
+            - **Barra de Ações Completa no Chamado (idêntica ao GLPI Web)**:
+              - **💬 Responder**: acompanhamento com modelos rápidos, origem da requisição (`Helpdesk`, `Telefone`, `E-mail`, `Direta`, `Escrita`), `Privado`, `Pendente` e botão `+ Adicionar`.
+              - **☑️ Tarefa**: modelos de tarefa, categoria, status (`Para fazer`, `Feito`, `Informação`), duração (`15` a `120 min`), botão `📅 Planejar esta tarefa`, `Privado`, `Pendente` e botão `+ Adicionar`.
+              - **✓ Solução**: modelos de solução, tipo de solução, gravação na Base de Conhecimento (`KB`) e botão `+ Adicionar` que soluciona o chamado.
+              - **📄 Documento**: rubrica do documento, seleção de arquivo (`📎 Escolher Arquivo (Foto / PDF)`) ou `📸 Captura de tela`, título, comentário e botão `+ Adicionar novo arquivo`.
+              - **👍 Aprovação**: envio de solicitação de aprovação (`Etapa de aprovação`, `Usuário` ou `Grupo`, aprovador, comentários e `+ Adicionar`) + decisão direta nos pedidos pendentes (`✅ Aprovar` / `❌ Recusar`).
 
-            👉 **Clique em `GLPI-HOSB-v1.0.6.apk` abaixo para baixar e instalar.**
+            👉 **Clique em `GLPI-HOSB-v1.0.7.apk` abaixo para baixar e instalar.**
           files: |
-            GLPI-HOSB-v1.0.6.apk
+            GLPI-HOSB-v1.0.7.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
