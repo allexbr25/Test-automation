@@ -22,17 +22,21 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Gerar Keystore de Assinatura Release (V1 + V2 + V3)
+      - name: Verificar Keystore Permanente de Assinatura Release (V1 + V2 + V3)
         run: |
-          keytool -genkeypair -v \
-            -keystore app/release-keystore.jks \
-            -alias glpi_hosb_key \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass glpihosb2026 \
-            -keypass glpihosb2026 \
-            -dname "CN=GLPI HOSB, OU=TIC, O=HOSB, L=Niteroi, ST=RJ, C=BR"
+          if [ ! -f app/release-keystore.jks ]; then
+            keytool -genkeypair -v \
+              -keystore app/release-keystore.jks \
+              -alias glpi_hosb_key \
+              -keyalg RSA \
+              -keysize 2048 \
+              -startdate -3650d \
+              -validity 15000 \
+              -storepass glpihosb2026 \
+              -keypass glpihosb2026 \
+              -dname "CN=GLPI HOSB, OU=TIC, O=HOSB, L=Niteroi, ST=RJ, C=BR"
+          fi
+          keytool -list -v -keystore app/release-keystore.jks -storepass glpihosb2026 | head -n 20
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
