@@ -1,5 +1,6 @@
 package br.com.hosb.glpi.ui.tickets
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import br.com.hosb.glpi.domain.model.Ticket
 import br.com.hosb.glpi.domain.model.TicketStatus
@@ -118,7 +120,9 @@ fun TicketDetailScreen(
 
                 // Ações rápidas de Status
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf(
@@ -129,7 +133,7 @@ fun TicketDetailScreen(
                         FilterChip(
                             selected = ticket.status == statusOption,
                             onClick = { onChangeStatus(ticket.id, statusOption) },
-                            label = { Text(statusOption.label) }
+                            label = { Text(statusOption.label, maxLines = 1, softWrap = false) }
                         )
                     }
                 }
@@ -148,7 +152,7 @@ fun TicketDetailScreen(
                 Tab(
                     selected = selectedTabIndex == index,
                     onClick = { selectedTabIndex = index },
-                    text = { Text(title, fontWeight = FontWeight.SemiBold) }
+                    text = { Text(title, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false) }
                 )
             }
         }
@@ -259,12 +263,17 @@ private fun TicketTimelineTab(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 listOf("Acompanhamento", "Tarefa", "Solução").forEach { type ->
                     FilterChip(
                         selected = followupType == type,
                         onClick = { onTypeChange(type) },
-                        label = { Text(type) }
+                        label = { Text(type, maxLines = 1, softWrap = false) }
                     )
                 }
             }
@@ -282,7 +291,12 @@ private fun TicketTimelineTab(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                ) {
                     Checkbox(checked = isPrivate, onCheckedChange = onPrivateChange)
                     Icon(
                         imageVector = Icons.Default.Lock,
@@ -290,7 +304,12 @@ private fun TicketTimelineTab(
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Privado (Somente TIC)", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = "Privado (Somente TIC)",
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
                 Button(
@@ -299,7 +318,7 @@ private fun TicketTimelineTab(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Enviar")
+                    Text("Enviar", maxLines = 1, softWrap = false)
                 }
             }
         }
@@ -314,18 +333,26 @@ private fun TicketTimelineTab(
             Column(modifier = Modifier.padding(14.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "${item.type} • ${item.author}",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
                     )
                     Text(
                         text = item.date,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))

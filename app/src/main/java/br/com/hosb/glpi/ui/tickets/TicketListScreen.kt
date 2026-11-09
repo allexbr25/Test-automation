@@ -139,12 +139,16 @@ fun TicketDashboardScreen(
                             Text(
                                 text = "GLPI HOSB",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.ExtraBold
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "Entidade: HOSB",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -175,12 +179,16 @@ fun TicketDashboardScreen(
                                         text = uiState.activeProfile.label,
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                     Text(
                                         text = "HOSB • ${uiState.credentials.username.ifBlank { "alex.ribeiro" }}",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                                 Icon(
@@ -445,7 +453,11 @@ private fun TicketListPane(
             ) {
                 Icon(Icons.Default.FilterList, contentDescription = "Filtros")
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Filtros")
+                Text(
+                    text = "Filtros",
+                    maxLines = 1,
+                    softWrap = false
+                )
                 if (uiState.activeFilterCount > 0) {
                     Spacer(modifier = Modifier.width(4.dp))
                     Badge { Text(uiState.activeFilterCount.toString()) }
@@ -471,10 +483,22 @@ private fun TicketListPane(
                         Text(
                             text = "Critérios de Filtro e Ordenação (GLPI)",
                             style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
                         )
-                        TextButton(onClick = onClearAllFilters) {
-                            Text("Limpar filtros")
+                        TextButton(
+                            onClick = onClearAllFilters,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Limpar filtros",
+                                maxLines = 1,
+                                softWrap = false
+                            )
                         }
                     }
 
@@ -489,7 +513,7 @@ private fun TicketListPane(
                             FilterChip(
                                 selected = uiState.selectedGroupFilter == group,
                                 onClick = { onGroupFilterChange(group) },
-                                label = { Text(group) }
+                                label = { Text(group, maxLines = 1, softWrap = false) }
                             )
                         }
                     }
@@ -507,7 +531,7 @@ private fun TicketListPane(
                             FilterChip(
                                 selected = uiState.selectedCategoryFilter == category,
                                 onClick = { onCategoryFilterChange(category) },
-                                label = { Text(category) }
+                                label = { Text(category, maxLines = 1, softWrap = false) }
                             )
                         }
                     }
@@ -525,7 +549,7 @@ private fun TicketListPane(
                             FilterChip(
                                 selected = uiState.sortOption == sort,
                                 onClick = { onSortOptionChange(sort) },
-                                label = { Text(sort.label) }
+                                label = { Text(sort.label, maxLines = 1, softWrap = false) }
                             )
                         }
                     }
@@ -534,14 +558,22 @@ private fun TicketListPane(
 
                     Text("Linhas por página (glpilist_limit):", style = MaterialTheme.typography.labelMedium)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         listOf(25, 50, 100, 500).forEach { limit ->
                             FilterChip(
                                 selected = uiState.pageSize == limit,
                                 onClick = { onPageSizeChange(limit) },
-                                label = { Text(if (limit >= 500) "Todos" else "$limit / pág") }
+                                label = {
+                                    Text(
+                                        text = if (limit >= 500) "Todos" else "$limit / pág",
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             )
                         }
                     }
@@ -560,7 +592,7 @@ private fun TicketListPane(
             FilterChip(
                 selected = uiState.selectedStatusFilter == null,
                 onClick = { onStatusFilterChange(null) },
-                label = { Text("Todos (${uiState.tickets.size})") }
+                label = { Text("Todos (${uiState.tickets.size})", maxLines = 1, softWrap = false) }
             )
             TicketStatus.entries.forEach { status ->
                 val count = uiState.tickets.count { it.status == status }
@@ -571,12 +603,12 @@ private fun TicketListPane(
                             if (uiState.selectedStatusFilter == status) null else status
                         )
                     },
-                    label = { Text("${status.label} ($count)") }
+                    label = { Text("${status.label} ($count)", maxLines = 1, softWrap = false) }
                 )
             }
         }
 
-        // Barra de Paginação estilo GLPI
+        // Barra de Paginação estilo GLPI (100% responsiva — sem quebra vertical em nenhuma tela)
         val startItem = if (uiState.totalFilteredCount == 0) 0 else ((uiState.currentPage - 1) * uiState.pageSize) + 1
         val endItem = (startItem + uiState.pagedTickets.size - 1).coerceAtLeast(0)
 
@@ -589,34 +621,37 @@ private fun TicketListPane(
         ) {
             Text(
                 text = "Exibindo $startItem a $endItem de ${uiState.totalFilteredCount} linhas",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp)
             )
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                TextButton(
-                    onClick = { onPageChange(uiState.currentPage - 1) },
+                PaginationStepButton(
+                    label = "◀ Anterior",
                     enabled = uiState.currentPage > 1,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Text("◀ Anterior")
-                }
+                    onClick = { onPageChange(uiState.currentPage - 1) }
+                )
                 Text(
                     text = "${uiState.currentPage}/${uiState.totalPages}",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false
                 )
-                TextButton(
-                    onClick = { onPageChange(uiState.currentPage + 1) },
+                PaginationStepButton(
+                    label = "Próxima ▶",
                     enabled = uiState.currentPage < uiState.totalPages,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Text("Próxima ▶")
-                }
+                    onClick = { onPageChange(uiState.currentPage + 1) }
+                )
             }
         }
 
@@ -637,6 +672,42 @@ private fun TicketListPane(
                 Spacer(modifier = Modifier.height(80.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun PaginationStepButton(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val containerColor = if (enabled) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+    }
+    val contentColor = if (enabled) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+    }
+
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = containerColor,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = contentColor,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+        )
     }
 }
 
@@ -662,12 +733,16 @@ private fun KpiBadgeCard(label: String, count: String, accent: Color) {
                 Text(
                     text = count,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    softWrap = false
                 )
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }
@@ -702,7 +777,12 @@ fun TicketCardItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                ) {
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(8.dp)
@@ -711,6 +791,8 @@ fun TicketCardItem(
                             text = "#${ticket.id}",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -734,7 +816,9 @@ fun TicketCardItem(
                                 text = ticket.status.label,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = statusColor,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -807,7 +891,9 @@ fun TicketCardItem(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
@@ -835,7 +921,9 @@ fun TicketCardItem(
                     Text(
                         text = ticket.assignedGroup,
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -844,12 +932,18 @@ fun TicketCardItem(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "Abertura: ${ticket.openedAt}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -862,7 +956,9 @@ fun TicketCardItem(
                     Text(
                         text = "Atualizado: ${ticket.updatedAt}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -886,6 +982,8 @@ fun PriorityPill(priority: TicketPriority) {
             style = MaterialTheme.typography.labelSmall,
             color = color,
             fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
     }
