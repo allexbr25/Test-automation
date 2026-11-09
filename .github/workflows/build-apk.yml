@@ -46,32 +46,32 @@ jobs:
       - name: Compilar APK Release Assinado (GLPI HOSB)
         run: |
           gradle assembleRelease --no-daemon
-          cp app/build/outputs/apk/release/app-release.apk GLPI-HOSB-v1.0.5.apk
+          cp app/build/outputs/apk/release/app-release.apk GLPI-HOSB-v1.0.6.apk
 
       - name: Verificar Assinatura V1/V2/V3 do APK
         run: |
-          jarsigner -verify -verbose -certs GLPI-HOSB-v1.0.5.apk | tail -n 20
+          jarsigner -verify -verbose -certs GLPI-HOSB-v1.0.6.apk | tail -n 20
 
       - name: Publicar APK como Artefato no GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: GLPI-HOSB-Android-APK-v1.0.5
-          path: GLPI-HOSB-v1.0.5.apk
+          name: GLPI-HOSB-Android-APK-v1.0.6
+          path: GLPI-HOSB-v1.0.6.apk
 
       - name: Criar/Atualizar Release com o APK Assinado para Download Direto
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.5
-          name: "GLPI HOSB Android APK v1.0.5"
+          tag_name: v1.0.6
+          name: "GLPI HOSB Android APK v1.0.6"
           body: |
-            ### 📱 Aplicativo Android GLPI HOSB (`glpi.hosb.com.br`) — Versão 1.0.5
-            - **Resposta Direta aos Chamados (Acompanhamento, Solução e Tarefa)**: botão `💬 Responder Chamado` em cada card da lista e painel principal `💬 Responder & Conversa` logo ao abrir o chamado, integrado com `itilfollowup.form.php`, `itilsolution.form.php` e `tickettask.form.php` do servidor GLPI HOSB.
-            - **Respostas Rápidas em 1 Toque** + opção **Privado (Somente TIC)** + carregamento em tempo real da descrição e histórico de conversas do chamado.
-            - **Correção de Responsividade Mobile**: barra de paginação (`Exibindo 1 a 50...` + botões `◀ Anterior` e `Próxima ▶`) e filtros 100% responsivos sem quebra vertical.
-            - **Assinatura completa V1 + V2 + V3**.
+            ### 📱 Aplicativo Android GLPI HOSB (`glpi.hosb.com.br`) — Versão 1.0.6 (Otimizada para Samsung Galaxy S23 Ultra • One UI 9)
+            - **Barra de Pesquisa Compacta em Pílula (One UI 9 — 40dp)**: substitui a caixa retangular alta por uma pílula enxuta (`RoundedCornerShape(20.dp)`) com botão compacto de `Filtros`, liberando amplo espaço vertical para a lista de chamados.
+            - **Tela de Login Limpa**: removidos textos técnicos (`TLS 1.3`, `Android Keystore AES-256-GCM`) mantendo toda a segurança e criptografia ativas de forma transparente em segundo plano.
+            - **Responsividade para Samsung Galaxy S23 Ultra (One UI 9)**: suporte nativo a `.systemBarsPadding()` (recorte da câmera frontal e barra de gestos) e `.imePadding()` (teclado nunca cobre o botão `Enviar Resposta`).
+            - **Keystore Permanente V1 + V2 + V3**: permite instalar ou atualizar sobre versões anteriores sem conflito de assinatura.
 
-            👉 **Clique em `GLPI-HOSB-v1.0.5.apk` abaixo para baixar e instalar.**
+            👉 **Clique em `GLPI-HOSB-v1.0.6.apk` abaixo para baixar e instalar.**
           files: |
-            GLPI-HOSB-v1.0.5.apk
+            GLPI-HOSB-v1.0.6.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -30,7 +32,6 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -107,29 +108,31 @@ fun LoginScreen(
                         MaterialTheme.colorScheme.background
                     )
                 )
-            ),
+            )
+            .systemBarsPadding()
+            .imePadding(),
         contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 460.dp)
+                .widthIn(max = 440.dp)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 24.dp),
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Logo Oficial HOSB com proporção fixa exata (sem esticar lateralmente)
             Surface(
                 shape = RoundedCornerShape(22.dp),
                 color = Color.White,
-                shadowElevation = 8.dp,
-                modifier = Modifier.size(width = 132.dp, height = 126.dp)
+                shadowElevation = 6.dp,
+                modifier = Modifier.size(width = 124.dp, height = 118.dp)
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(12.dp)
+                        .padding(10.dp)
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.logo_hosb),
@@ -143,68 +146,47 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = "GLPI HOSB • glpi.hosb.com.br",
-                style = MaterialTheme.typography.titleSmall,
+                text = "GLPI HOSB",
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
             Text(
                 text = "Central de Serviços e Gestão de Chamados",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.82f),
-                modifier = Modifier.padding(bottom = 16.dp)
+                color = Color.White.copy(alpha = 0.85f),
+                modifier = Modifier.padding(bottom = 14.dp)
             )
 
             // Card Principal de Login (main-content-card do GLPI)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(22.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp)
+                        .padding(horizontal = 22.dp, vertical = 22.dp)
                 ) {
                     Text(
                         text = "Faça login para sua conta",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Security,
-                            contentDescription = null,
-                            tint = Color(0xFF16A34A),
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "TLS 1.3 + Android Keystore AES-256-GCM",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     if (!errorMessage.isNullOrBlank()) {
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(bottom = 16.dp)
+                                .padding(bottom = 14.dp)
                         ) {
                             Text(
                                 text = errorMessage,
@@ -223,6 +205,7 @@ fun LoginScreen(
                         placeholder = { Text("Ex: alex.ribeiro") },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                         singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Text,
                             imeAction = ImeAction.Next
@@ -230,7 +213,7 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // Campo 2: Senha (id="login_password" no GLPI) + Link "Esqueceu sua senha?"
                     Row(
@@ -239,7 +222,7 @@ fun LoginScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Credencial de acesso",
+                            text = "Senha",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -271,7 +254,7 @@ fun LoginScreen(
                     OutlinedTextField(
                         value = credentials.password,
                         onValueChange = onPasswordChange,
-                        label = { Text("Senha") },
+                        placeholder = { Text("Digite sua senha") },
                         leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                         trailingIcon = {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
@@ -283,6 +266,7 @@ fun LoginScreen(
                         },
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Password,
                             imeAction = ImeAction.Done
@@ -302,6 +286,7 @@ fun LoginScreen(
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Origem de login") },
+                            shape = RoundedCornerShape(14.dp),
                             trailingIcon = {
                                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = originDropdownExpanded)
                             },
@@ -325,9 +310,9 @@ fun LoginScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-                    HorizontalDivider()
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // Seção de Credenciais da API REST (Opcional)
                     Row(
@@ -347,13 +332,14 @@ fun LoginScreen(
                             Icon(
                                 imageVector = Icons.Default.Api,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = "Credenciais de API REST (Opcional)",
-                                    style = MaterialTheme.typography.titleSmall,
+                                    text = "Credenciais de API (Opcional)",
+                                    style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
@@ -373,7 +359,7 @@ fun LoginScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 10.dp)
+                                .padding(top = 8.dp)
                         ) {
                             OutlinedTextField(
                                 value = credentials.serverUrl,
@@ -382,16 +368,17 @@ fun LoginScreen(
                                 placeholder = { Text("https://glpi.hosb.com.br/apirest.php/") },
                                 leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
                                 singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.fillMaxWidth()
                             )
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
                             OutlinedTextField(
                                 value = credentials.appToken,
                                 onValueChange = onAppTokenChange,
                                 label = { Text("App-Token da API (app_token)") },
-                                placeholder = { Text("Token do cliente em Configurar > Geral > API") },
+                                placeholder = { Text("Token em Configurar > Geral > API") },
                                 leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
                                 trailingIcon = {
                                     IconButton(onClick = { appTokenVisible = !appTokenVisible }) {
@@ -403,25 +390,27 @@ fun LoginScreen(
                                 },
                                 visualTransformation = if (appTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
                                 singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.fillMaxWidth()
                             )
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
                             OutlinedTextField(
                                 value = credentials.userToken,
                                 onValueChange = onUserTokenChange,
                                 label = { Text("Token Pessoal / User-Token (Opcional)") },
-                                placeholder = { Text("Alternativa ao login/senha em Preferências") },
-                                leadingIcon = { Icon(Icons.Default.Security, contentDescription = null) },
+                                placeholder = { Text("Alternativa ao login/senha") },
+                                leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
                                 visualTransformation = PasswordVisualTransformation(),
                                 singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // Checkbox: Lembrar de mim (id="login_remember" no GLPI)
                     Row(
@@ -435,21 +424,21 @@ fun LoginScreen(
                             onCheckedChange = onRememberMeChange
                         )
                         Text(
-                            text = "Lembrar de mim (Criptografia Android Keystore)",
+                            text = "Lembrar de mim",
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Botão Entrar (name="submit" no GLPI)
                     Button(
                         onClick = onLoginSubmit,
                         enabled = !isLoading,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp)
+                            .height(48.dp)
                     ) {
                         if (isLoading) {
                             CircularProgressIndicator(
@@ -468,10 +457,10 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "HOSB - Desde 1966 • GLPI 11.0.2 • Conexão verificada HTTPS",
+                text = "Hospital de Olhos Santa Beatriz • GLPI",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center

@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
@@ -50,8 +51,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -399,68 +399,119 @@ private fun TicketListPane(
     onSelectTicket: (Ticket?) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // Resumo de Indicadores (KPIs sincronizados com o perfil ativo)
+        // Barra de Pesquisa Compacta em Pílula (Estilo Samsung One UI 9 — 40.dp de altura) + Botão de Filtros
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            val assignedCount = uiState.tickets.count { it.status == TicketStatus.ASSIGNED }
-            val pendingCount = uiState.tickets.count { it.status == TicketStatus.PENDING }
-            val plannedCount = uiState.tickets.count { it.status == TicketStatus.PLANNED }
-
-            KpiBadgeCard(
-                label = "Total (${uiState.activeProfile.label})",
-                count = uiState.tickets.size.toString(),
-                accent = MaterialTheme.colorScheme.primary
-            )
-            KpiBadgeCard("Atribuídos", assignedCount.toString(), StatusAssignedColor)
-            KpiBadgeCard("Pendentes", pendingCount.toString(), StatusPendingColor)
-            KpiBadgeCard("Planejados", plannedCount.toString(), StatusPlannedColor)
-        }
-
-        // Barra de Pesquisa + Botão de Filtros Avançados GLPI
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = onSearchQueryChange,
-                placeholder = { Text("Pesquisar ID, título, requerente...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (uiState.searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Limpar")
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+            ) {
+                BasicTextField(
+                    value = uiState.searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    decorationBox = { innerTextField ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Pesquisar",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                if (uiState.searchQuery.isEmpty()) {
+                                    Text(
+                                        text = "Pesquisar ID, título, requerente...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                innerTextField()
+                            }
+                            if (uiState.searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { onSearchQueryChange("") },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Limpar",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
                         }
                     }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.weight(1f)
-            )
-
-            OutlinedButton(
-                onClick = onToggleFilterPanel,
-                shape = RoundedCornerShape(14.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)
-            ) {
-                Icon(Icons.Default.FilterList, contentDescription = "Filtros")
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Filtros",
-                    maxLines = 1,
-                    softWrap = false
                 )
-                if (uiState.activeFilterCount > 0) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Badge { Text(uiState.activeFilterCount.toString()) }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = if (uiState.isFilterPanelExpanded || uiState.activeFilterCount > 0) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                },
+                modifier = Modifier
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable(onClick = onToggleFilterPanel)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FilterList,
+                        contentDescription = "Filtros",
+                        tint = if (uiState.isFilterPanelExpanded || uiState.activeFilterCount > 0) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = "Filtros",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (uiState.isFilterPanelExpanded || uiState.activeFilterCount > 0) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    if (uiState.activeFilterCount > 0) {
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Badge { Text(uiState.activeFilterCount.toString()) }
+                    }
                 }
             }
         }

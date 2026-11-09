@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -19,7 +20,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -68,13 +68,13 @@ fun TicketDetailScreen(
     val tabs = listOf(
         "💬 Responder & Conversa (${ticket.timeline.size})",
         "📋 Dados & Atores",
-        "✔️ Aprovações (${ticket.approvals.size})",
-        "🛡️ Segurança & Logs"
+        "✔️ Aprovações (${ticket.approvals.size})"
     )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
             .padding(12.dp)
     ) {
         // Cabeçalho do Chamado
@@ -191,7 +191,6 @@ fun TicketDetailScreen(
                 )
                 1 -> TicketMetadataAndActorsTab(ticket)
                 2 -> TicketApprovalsTab(ticket)
-                3 -> TicketSecurityAuditTab(ticket, sessionToken)
             }
         }
     }
@@ -528,41 +527,6 @@ private fun TicketApprovalsTab(ticket: Ticket) {
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun TicketSecurityAuditTab(ticket: Ticket, sessionToken: String?) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.VerifiedUser,
-                    contentDescription = null,
-                    tint = Color(0xFF16A34A)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Auditoria & Segurança da Sessão GLPI",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            DetailRow("Servidor Remoto", "https://glpi.hosb.com.br (TLS 1.3)")
-            DetailRow("Armazenamento Local", "EncryptedSharedPreferences (AES-256-GCM)")
-            DetailRow(
-                "Session-Token Ativo",
-                sessionToken?.take(10)?.plus("••••••••••••") ?: "Protegido em Keystore"
-            )
-            DetailRow("Proteção de Tela", "FLAG_SECURE habilitado para dados sensíveis")
-            DetailRow("Sanitização HTML/XSS", "Ativa em Título, Descrição e Acompanhamentos")
-            DetailRow("ID Auditado", "Ticket #${ticket.id}")
         }
     }
 }
